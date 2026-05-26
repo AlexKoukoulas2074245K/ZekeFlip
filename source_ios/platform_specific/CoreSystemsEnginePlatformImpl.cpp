@@ -108,6 +108,7 @@ void CoreSystemsEngine::Initialize()
 
     // Systems Initialization
     mSystems = std::make_unique<SystemsImpl>();
+    mSystems->mRenderer.VInitialize();
     mSystems->mResourceLoadingService.Initialize();
     mSystems->mSoundManager.Initialize();
     

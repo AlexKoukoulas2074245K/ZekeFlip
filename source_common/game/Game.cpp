@@ -90,7 +90,7 @@ void Game::Init()
     scene->GetCamera().SetZoomFactor(50.0f);
     scene->SetLoaded(true);
     
-    mTestButton = std::make_unique<AnimatedButton>(glm::vec3(-0.3f, 0.0f, 1.0f), glm::vec3(0.0001f), game_constants::DEFAULT_FONT_NAME, "Test my limits, left and right :)", strutils::StringId("test_button"), [](){}, scene);
+    mTestButton = std::make_unique<AnimatedButton>(glm::vec3(-0.0f, 0.0f, 1.0f), glm::vec3(0.0001f), game_constants::DEFAULT_FONT_NAME, "Test my limits, left and right :)", strutils::StringId("test_button"), [](){}, scene);
 }
 
 ///------------------------------------------------------------------------------------------------
