@@ -1,0 +1,530 @@
+///------------------------------------------------------------------------------------------------
+///  RendererPlatformImpl.cpp
+///  Predators                                                                                            
+///                                                                                                
+///  Created by Alex Koukoulas on 03/10/2023                                                       
+///------------------------------------------------------------------------------------------------
+
+#include <engine/CoreSystemsEngine.h>
+#include <engine/rendering/Fonts.h>
+#include <engine/rendering/OpenGL.h>
+#include <engine/rendering/CommonUniforms.h>
+#include <engine/resloading/MeshResource.h>
+#include <engine/resloading/ResourceLoadingService.h>
+#include <engine/resloading/ShaderResource.h>
+#include <engine/resloading/TextureResource.h>
+#include <engine/scene/Scene.h>
+#include <engine/scene/SceneObject.h>
+#include <engine/scene/SceneObjectUtils.h>
+#include <engine/utils/Logging.h>
+#include <engine/utils/StringUtils.h>
+#include <imgui/backends/imgui_impl_sdl2.h>
+#include <imgui/backends/imgui_impl_opengl3.h>
+#include <platform_specific/RendererPlatformImpl.h>
+#include <SDL.h>
+#include <SDL_syswm.h>
+
+//#define IMGUI_IN_RELEASE
+
+///------------------------------------------------------------------------------------------------
+
+namespace rendering
+{
+
+///------------------------------------------------------------------------------------------------
+
+static const glm::ivec4 RENDER_TO_TEXTURE_VIEWPORT = {-1536, -1024, 4096, 4096};
+static const glm::vec4 RENDER_TO_TEXTURE_CLEAR_COLOR = {1.0f, 1.0f, 1.0f, 0.0f};
+
+static const std::vector<std::vector<float>> GLYPH_DEFAULT_VERTEX_POSITIONS =
+{
+    {
+        0.0f, 0.0f, 0.0f,
+        1.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f,
+        1.0f, 1.0f, 0.0f
+    }
+};
+
+static const std::vector<float> GLYPH_DEFAULT_UVS =
+{
+    0.0f, 0.0f,
+    1.0f, 0.0f,
+    0.0f, 1.0f,
+    1.0f, 1.0f
+};
+
+//TODO: Beautify
+static unsigned int sFontVertexArrayObject;
+static unsigned int sFontVertexBuffer;
+static unsigned int sFontUVBuffer;
+static unsigned int sFontPositionBuffer;
+static unsigned int sFontScaleBuffer;
+static unsigned int sFontCustomMinUVBuffer;
+static unsigned int sFontCustomMaxUVBuffer;
+static unsigned int sFontAlphaBuffer;
+
+///------------------------------------------------------------------------------------------------
+
+class SceneObjectTypeRendererVisitor
+{
+public:
+    SceneObjectTypeRendererVisitor(const scene::SceneObject& sceneObject, const Camera& camera, RendererPlatformImpl::FontRenderingDataMap& fontRenderingDataMap)
+    : mSceneObject(sceneObject)
+    , mCamera(camera)
+    , mFontRenderingDataMap(fontRenderingDataMap)
+    {
+    }
+    
+    void operator()(scene::DefaultSceneObjectData)
+    {
+        auto& resService = CoreSystemsEngine::GetInstance().GetResourceLoadingService();
+        
+        auto* currentShader = &(resService.GetResource<resources::ShaderResource>(mSceneObject.mShaderResourceId));
+        GL_CALL(glUseProgram(currentShader->GetProgramId()));
+        
+        for (size_t i = 0; i < currentShader->GetUniformSamplerNames().size(); ++i)
+        {
+            currentShader->SetInt(currentShader->GetUniformSamplerNames().at(i), static_cast<int>(i));
+        }
+        
+        auto* currentMesh = &(resService.GetResource<resources::MeshResource>(mSceneObject.mMeshResourceId));
+        GL_CALL(glBindVertexArray(currentMesh->GetVertexArrayObject()));
+        
+        auto* currentTexture = &(resService.GetResource<resources::TextureResource>(mSceneObject.mTextureResourceId));
+        GL_CALL(glActiveTexture(GL_TEXTURE0));
+        GL_CALL(glBindTexture(GL_TEXTURE_2D, currentTexture->GetGLTextureId()));
+        
+        for (int i = 0; i < scene::EFFECT_TEXTURES_COUNT; ++i)
+        {
+            if (mSceneObject.mEffectTextureResourceIds[i] != 0)
+            {
+                auto* currentEffectTexture = &(resService.GetResource<resources::TextureResource>(mSceneObject.mEffectTextureResourceIds[i]));
+                GL_CALL(glActiveTexture(GL_TEXTURE1 + i));
+                GL_CALL(glBindTexture(GL_TEXTURE_2D, currentEffectTexture->GetGLTextureId()));
+            }
+        }
+        
+        glm::mat4 world(1.0f);
+        world = glm::translate(world, mSceneObject.mPosition);
+        glm::mat4 rot(1.0f);
+        rot = glm::rotate(rot, mSceneObject.mRotation.x, math::X_AXIS);
+        rot = glm::rotate(rot, mSceneObject.mRotation.y, math::Y_AXIS);
+        rot = glm::rotate(rot, mSceneObject.mRotation.z, math::Z_AXIS);
+        world *= rot;
+        world = glm::scale(world, mSceneObject.mScale);
+        
+        currentShader->SetFloat(CUSTOM_ALPHA_UNIFORM_NAME, 1.0f);
+        currentShader->SetBool(IS_AFFECTED_BY_LIGHT_UNIFORM_NAME, mSceneObject.mShaderBoolUniformValues.count(IS_AFFECTED_BY_LIGHT_UNIFORM_NAME) ? mSceneObject.mShaderBoolUniformValues.at(IS_AFFECTED_BY_LIGHT_UNIFORM_NAME) : false);
+        currentShader->SetBool(IS_TEXTURE_SHEET_UNIFORM_NAME, false);
+        currentShader->SetMatrix4fv(WORLD_MATRIX_UNIFORM_NAME, world);
+        currentShader->SetMatrix4fv(VIEW_MATRIX_UNIFORM_NAME, mCamera.GetViewMatrix());
+        currentShader->SetMatrix4fv(PROJ_MATRIX_UNIFORM_NAME, mCamera.GetProjMatrix());
+        currentShader->SetMatrix4fv(ROT_MATRIX_UNIFORM_NAME, rot);
+        
+        for (const auto& vec3Entry: mSceneObject.mShaderVec3UniformValues) currentShader->SetFloatVec3(vec3Entry.first, vec3Entry.second);
+        for (const auto& vec4Entry: mSceneObject.mShaderVec4UniformValues) currentShader->SetFloatVec4(vec4Entry.first, vec4Entry.second);
+        for (const auto& floatEntry: mSceneObject.mShaderFloatUniformValues) currentShader->SetFloat(floatEntry.first, floatEntry.second);
+        for (const auto& intEntry: mSceneObject.mShaderIntUniformValues) currentShader->SetInt(intEntry.first, intEntry.second);
+        for (const auto& boolEntry: mSceneObject.mShaderBoolUniformValues) currentShader->SetBool(boolEntry.first, boolEntry.second);
+        
+        GL_CALL(glDrawElements(GL_TRIANGLES, currentMesh->GetElementCount(), GL_UNSIGNED_SHORT, (void*)0));
+        GL_CALL(glBindVertexArray(0));
+    }
+    
+    void operator()(scene::TextSceneObjectData sceneObjectTypeData)
+    {
+        //auto& resService = CoreSystemsEngine::GetInstance().GetResourceLoadingService();
+        
+        // Find right bucket
+        if (!mFontRenderingDataMap.contains(sceneObjectTypeData.mFontName))
+        {
+            mFontRenderingDataMap[sceneObjectTypeData.mFontName];
+        }
+        
+        auto& innerFontRenderingMap = mFontRenderingDataMap.at(sceneObjectTypeData.mFontName);
+        if (!innerFontRenderingMap.contains(mSceneObject.mShaderResourceId))
+        {
+            innerFontRenderingMap[mSceneObject.mShaderResourceId];
+        }
+
+        auto& currentFontRenderData = innerFontRenderingMap.at(mSceneObject.mShaderResourceId);
+
+        auto fontOpt = CoreSystemsEngine::GetInstance().GetFontRepository().GetFont(sceneObjectTypeData.mFontName);
+        assert(fontOpt);
+        const auto& font = fontOpt->get();
+        
+        const auto& stringRect = scene_object_utils::GetSceneObjectBoundingRect(mSceneObject);
+        const auto stringWidth = stringRect.topRight.x - stringRect.bottomLeft.x;
+        const auto stringHeight = stringRect.topRight.y - stringRect.bottomLeft.y;
+
+        float xCursor = mSceneObject.mPosition.x;
+        
+        const auto& stringFontGlyphs = font.FindGlyphs(sceneObjectTypeData.mText);
+        for (size_t i = 0; i < stringFontGlyphs.size(); ++i)
+        {
+            const auto& glyph = stringFontGlyphs[i];
+            float yCursor = mSceneObject.mPosition.y - glyph.mHeightPixels * mSceneObject.mScale.y;
+            
+            float targetX = xCursor + glyph.mXOffsetPixels * mSceneObject.mScale.x;
+            float targetY = yCursor - glyph.mYOffsetPixels * mSceneObject.mScale.y;
+            
+            currentFontRenderData.mGlyphPositions.emplace_back(targetX - stringWidth/2.0f, targetY - stringHeight/2.0f, mSceneObject.mPosition.z + 0.00001f * i);
+            currentFontRenderData.mGlyphScales.emplace_back(glyph.mWidthPixels * mSceneObject.mScale.x, glyph.mHeightPixels * mSceneObject.mScale.y, 1.0f);
+            currentFontRenderData.mGlyphMinUVs.emplace_back(glyph.minU, glyph.minV);
+            currentFontRenderData.mGlyphMaxUVs.emplace_back(glyph.maxU, glyph.maxV);
+            currentFontRenderData.mGlyphAlphas.emplace_back(mSceneObject.mShaderFloatUniformValues.contains(CUSTOM_ALPHA_UNIFORM_NAME) ? mSceneObject.mShaderFloatUniformValues.at(CUSTOM_ALPHA_UNIFORM_NAME) : 1.0f);
+            
+            if (i != stringFontGlyphs.size() - 1)
+            {
+                xCursor += glyph.mAdvancePixels * mSceneObject.mScale.x;
+            }
+        }
+    }
+    
+    void operator()(scene::ParticleEmitterObjectData particleEmitterData)
+    {
+        auto& resService = CoreSystemsEngine::GetInstance().GetResourceLoadingService();
+        
+        auto* currentShader = &(resService.GetResource<resources::ShaderResource>(mSceneObject.mShaderResourceId));
+        GL_CALL(glUseProgram(currentShader->GetProgramId()));
+        
+        for (size_t i = 0; i < currentShader->GetUniformSamplerNames().size(); ++i)
+        {
+            currentShader->SetInt(currentShader->GetUniformSamplerNames().at(i), static_cast<int>(i));
+        }
+        
+        auto* currentTexture = &(resService.GetResource<resources::TextureResource>(mSceneObject.mTextureResourceId));
+        GL_CALL(glActiveTexture(GL_TEXTURE0));
+        GL_CALL(glBindTexture(GL_TEXTURE_2D, currentTexture->GetGLTextureId()));
+        
+        for (int i = 0; i < scene::EFFECT_TEXTURES_COUNT; ++i)
+        {
+            if (mSceneObject.mEffectTextureResourceIds[i] != 0)
+            {
+                auto* currentEffectTexture = &(resService.GetResource<resources::TextureResource>(mSceneObject.mEffectTextureResourceIds[i]));
+                GL_CALL(glActiveTexture(GL_TEXTURE1 + i));
+                GL_CALL(glBindTexture(GL_TEXTURE_2D, currentEffectTexture->GetGLTextureId()));
+            }
+        }
+        
+        currentShader->SetFloat(CUSTOM_ALPHA_UNIFORM_NAME, 1.0f);
+        currentShader->SetMatrix4fv(VIEW_MATRIX_UNIFORM_NAME, mCamera.GetViewMatrix());
+        currentShader->SetMatrix4fv(PROJ_MATRIX_UNIFORM_NAME, mCamera.GetProjMatrix());
+        
+        for (const auto& vec3Entry: mSceneObject.mShaderVec3UniformValues) currentShader->SetFloatVec3(vec3Entry.first, vec3Entry.second);
+        for (const auto& vec4Entry: mSceneObject.mShaderVec4UniformValues) currentShader->SetFloatVec4(vec4Entry.first, vec4Entry.second);
+        for (const auto& floatEntry: mSceneObject.mShaderFloatUniformValues) currentShader->SetFloat(floatEntry.first, floatEntry.second);
+        for (const auto& intEntry: mSceneObject.mShaderIntUniformValues) currentShader->SetInt(intEntry.first, intEntry.second);
+        for (const auto& boolEntry: mSceneObject.mShaderBoolUniformValues) currentShader->SetBool(boolEntry.first, boolEntry.second);
+        
+        GL_CALL(glBindVertexArray(particleEmitterData.mParticleVertexArrayObject));
+        
+        GL_CALL(glEnableVertexAttribArray(0));
+        GL_CALL(glEnableVertexAttribArray(1));
+        GL_CALL(glEnableVertexAttribArray(2));
+        GL_CALL(glEnableVertexAttribArray(3));
+        GL_CALL(glEnableVertexAttribArray(4));
+        GL_CALL(glEnableVertexAttribArray(5));
+        
+        // update the position buffer
+        GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particleEmitterData.mParticlePositionsBuffer));
+        GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, particleEmitterData.mParticlePositions.size() * sizeof(glm::vec3), particleEmitterData.mParticlePositions.data()));
+        
+        // update the lifetime buffer
+        GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particleEmitterData.mParticleLifetimeSecsBuffer));
+        GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, particleEmitterData.mParticlePositions.size() * sizeof(float), particleEmitterData.mParticleLifetimeSecs.data()));
+        
+        // update the size buffer
+        GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particleEmitterData.mParticleSizesBuffer));
+        GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, particleEmitterData.mParticleSizes.size() * sizeof(float), particleEmitterData.mParticleSizes.data()));
+        
+        // update the angle buffer
+        GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particleEmitterData.mParticleAnglesBuffer));
+        GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, particleEmitterData.mParticleAngles.size() * sizeof(float), particleEmitterData.mParticleAngles.data()));
+        
+        // vertex buffer
+        GL_CALL(glBindBuffer(GL_ARRAY_BUFFER , particleEmitterData.mParticleVertexBuffer));
+        GL_CALL(glVertexAttribPointer(0, 3 , GL_FLOAT, GL_FALSE , 0 , nullptr));
+        
+        // uv buffer
+        GL_CALL(glBindBuffer(GL_ARRAY_BUFFER , particleEmitterData.mParticleUVBuffer));
+        GL_CALL(glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE , 0 , nullptr));
+        
+        // position buffer
+        GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particleEmitterData.mParticlePositionsBuffer));
+        GL_CALL(glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE , 0 , nullptr));
+        GL_CALL(glVertexAttribDivisor(2, 1));
+        
+        // lifetime buffer
+        GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particleEmitterData.mParticleLifetimeSecsBuffer));
+        GL_CALL(glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE , 0 , nullptr));
+        GL_CALL(glVertexAttribDivisor(3, 1));
+        
+        // size buffer
+        GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particleEmitterData.mParticleSizesBuffer));
+        GL_CALL(glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE , 0 , nullptr));
+        GL_CALL(glVertexAttribDivisor(4, 1));
+        
+        // angle buffer
+        GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, particleEmitterData.mParticleAnglesBuffer));
+        GL_CALL(glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE , 0 , nullptr));
+        GL_CALL(glVertexAttribDivisor(5, 1));
+        
+        // draw triangles
+        GL_CALL(glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<int>(particleEmitterData.mParticlePositions.size())));
+        
+        GL_CALL(glDisableVertexAttribArray(0));
+        GL_CALL(glDisableVertexAttribArray(1));
+        GL_CALL(glDisableVertexAttribArray(2));
+        GL_CALL(glDisableVertexAttribArray(3));
+        GL_CALL(glDisableVertexAttribArray(4));
+        GL_CALL(glDisableVertexAttribArray(5));
+        
+        GL_CALL(glBindVertexArray(0));
+    }
+    
+private:
+    const scene::SceneObject& mSceneObject;
+    const Camera& mCamera;
+    RendererPlatformImpl::FontRenderingDataMap& mFontRenderingDataMap;
+};
+
+///------------------------------------------------------------------------------------------------
+
+void RendererPlatformImpl::VInitialize()
+{
+    GL_CALL(glGenVertexArrays(1, &sFontVertexArrayObject));
+    GL_CALL(glGenBuffers(1, &sFontVertexBuffer));
+    GL_CALL(glGenBuffers(1, &sFontUVBuffer));
+    GL_CALL(glGenBuffers(1, &sFontPositionBuffer));
+    GL_CALL(glGenBuffers(1, &sFontScaleBuffer));
+    GL_CALL(glGenBuffers(1, &sFontCustomMinUVBuffer));
+    GL_CALL(glGenBuffers(1, &sFontCustomMaxUVBuffer));
+    GL_CALL(glGenBuffers(1, &sFontAlphaBuffer));
+
+    GL_CALL(glBindVertexArray(sFontVertexArrayObject));
+    
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontVertexBuffer));
+    GL_CALL(glBufferData(GL_ARRAY_BUFFER, GLYPH_DEFAULT_VERTEX_POSITIONS[0].size() * sizeof(float) , GLYPH_DEFAULT_VERTEX_POSITIONS[0].data(), GL_STATIC_DRAW));
+    
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontUVBuffer));
+    GL_CALL(glBufferData(GL_ARRAY_BUFFER, GLYPH_DEFAULT_UVS.size() * sizeof(float) , GLYPH_DEFAULT_UVS.data(), GL_STATIC_DRAW));
+    
+    GL_CALL(glBindVertexArray(0));
+}
+
+///------------------------------------------------------------------------------------------------
+
+void RendererPlatformImpl::VBeginRenderPass()
+{
+    auto windowDimensions = CoreSystemsEngine::GetInstance().GetContextRenderableDimensions();
+    
+    // Set View Port
+    GL_CALL(glViewport(0, 0, static_cast<int>(windowDimensions.x), static_cast<int>(windowDimensions.y)));
+    
+    // Set background color
+    GL_CALL(glClearColor(1.0f, 0.0f, 0.0f, 1.0f));
+    
+    GL_CALL(glEnable(GL_DEPTH_TEST));
+    GL_CALL(glEnable(GL_BLEND));
+    
+    // Clear buffers
+    GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+
+    GL_CALL(glDisable(GL_CULL_FACE));
+    
+    mSceneObjectsWithDeferredRendering.clear();
+}
+
+///------------------------------------------------------------------------------------------------
+
+void RendererPlatformImpl::VRenderScene(scene::Scene& scene)
+{
+    mFontRenderingPassData.clear();
+    
+    for (const auto& sceneObject: scene.GetSceneObjects())
+    {
+        if (sceneObject->mInvisible) continue;
+        if (sceneObject->mDeferredRendering)
+        {
+            mSceneObjectsWithDeferredRendering.push_back(std::make_pair(&scene.GetCamera(), sceneObject));
+            continue;
+        }
+        std::visit(SceneObjectTypeRendererVisitor(*sceneObject, scene.GetCamera(), mFontRenderingPassData), sceneObject->mSceneObjectTypeData);
+    }
+    
+    RenderSceneText(scene);
+}
+
+///------------------------------------------------------------------------------------------------
+
+void RendererPlatformImpl::VRenderSceneObjectsToTexture(const std::vector<std::shared_ptr<scene::SceneObject>>& sceneObjects, const rendering::Camera& camera)
+{
+    int w, h;
+    SDL_GL_GetDrawableSize(&CoreSystemsEngine::GetInstance().GetContextWindow(), &w, &h);
+    const auto currentAspectToDefaultAspect = (static_cast<float>(w)/h)/CoreSystemsEngine::GetInstance().GetDefaultAspectRatio();
+    
+    // Magic for slightly offsetting the camera to render correctly to texture for any Aspect Ratio
+    float cameraXOffset = 0.0687034f * currentAspectToDefaultAspect - 0.0671117f;
+    auto originalPosition = camera.GetPosition();
+    auto originalZoomFactor = camera.GetZoomFactor();
+    
+    const_cast<rendering::Camera&>(camera).SetPosition(glm::vec3(cameraXOffset, 0.0f, camera.GetPosition().z));
+    const_cast<rendering::Camera&>(camera).SetZoomFactor(120.0f);
+    
+    // Set custom viewport
+    GL_CALL(glViewport(RENDER_TO_TEXTURE_VIEWPORT.x, RENDER_TO_TEXTURE_VIEWPORT.y, RENDER_TO_TEXTURE_VIEWPORT.z, RENDER_TO_TEXTURE_VIEWPORT.w));
+    
+    // Set background color
+    GL_CALL(glClearColor(RENDER_TO_TEXTURE_CLEAR_COLOR.r, RENDER_TO_TEXTURE_CLEAR_COLOR.g, RENDER_TO_TEXTURE_CLEAR_COLOR.b, RENDER_TO_TEXTURE_CLEAR_COLOR.a));
+    
+    GL_CALL(glEnable(GL_DEPTH_TEST));
+    GL_CALL(glEnable(GL_BLEND));
+    
+    // Clear buffers
+    GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
+    
+    GL_CALL(glDisable(GL_CULL_FACE));
+    
+    for (auto sceneObject: sceneObjects)
+    {
+        std::visit(SceneObjectTypeRendererVisitor(*sceneObject, camera, mFontRenderingPassData), sceneObject->mSceneObjectTypeData);
+    }
+    
+    const_cast<rendering::Camera&>(camera).SetPosition(originalPosition);
+    const_cast<rendering::Camera&>(camera).SetZoomFactor(originalZoomFactor);
+}
+
+///------------------------------------------------------------------------------------------------
+
+void RendererPlatformImpl::VEndRenderPass()
+{
+    for (const auto& sceneObjectEntry: mSceneObjectsWithDeferredRendering)
+    {
+        std::visit(SceneObjectTypeRendererVisitor(*sceneObjectEntry.second, *sceneObjectEntry.first, mFontRenderingPassData), sceneObjectEntry.second->mSceneObjectTypeData);
+    }
+    
+    // Swap window buffers
+    SDL_GL_SwapWindow(&CoreSystemsEngine::GetInstance().GetContextWindow());
+}
+
+///------------------------------------------------------------------------------------------------
+
+void RendererPlatformImpl::RenderSceneText(scene::Scene& scene)
+{
+    for (const auto& [fontName, fontShaderMap]: mFontRenderingPassData)
+    {
+        for (const auto& [shaderResourceId, fontRenderData]: fontShaderMap)
+        {
+            auto& resService = CoreSystemsEngine::GetInstance().GetResourceLoadingService();
+            
+            auto* currentShader = &(resService.GetResource<resources::ShaderResource>(shaderResourceId));
+            GL_CALL(glUseProgram(currentShader->GetProgramId()));
+            
+            for (size_t i = 0; i < currentShader->GetUniformSamplerNames().size(); ++i)
+            {
+                currentShader->SetInt(currentShader->GetUniformSamplerNames().at(i), static_cast<int>(i));
+            }
+            
+            auto fontOpt = CoreSystemsEngine::GetInstance().GetFontRepository().GetFont(fontName);
+            assert(fontOpt);
+            const auto& font = fontOpt->get();
+
+            auto* currentTexture = &(resService.GetResource<resources::TextureResource>(font.mFontTextureResourceId));
+            GL_CALL(glActiveTexture(GL_TEXTURE0));
+            GL_CALL(glBindTexture(GL_TEXTURE_2D, currentTexture->GetGLTextureId()));
+
+            currentShader->SetFloat(CUSTOM_ALPHA_UNIFORM_NAME, 1.0f);
+            currentShader->SetMatrix4fv(VIEW_MATRIX_UNIFORM_NAME, scene.GetCamera().GetViewMatrix());
+            currentShader->SetMatrix4fv(PROJ_MATRIX_UNIFORM_NAME, scene.GetCamera().GetProjMatrix());
+            
+            GL_CALL(glBindVertexArray(sFontVertexArrayObject));
+            
+            GL_CALL(glEnableVertexAttribArray(0));
+            GL_CALL(glEnableVertexAttribArray(1));
+            GL_CALL(glEnableVertexAttribArray(2));
+            GL_CALL(glEnableVertexAttribArray(3));
+            GL_CALL(glEnableVertexAttribArray(4));
+            GL_CALL(glEnableVertexAttribArray(5));
+            GL_CALL(glEnableVertexAttribArray(6));
+            
+            // update the position buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontPositionBuffer));
+            GL_CALL(glBufferData(GL_ARRAY_BUFFER, fontRenderData.mGlyphPositions.size() * sizeof(glm::vec3), NULL, GL_DYNAMIC_DRAW));
+            GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, fontRenderData.mGlyphPositions.size() * sizeof(glm::vec3), fontRenderData.mGlyphPositions.data()));
+            
+            // update the scales buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontScaleBuffer));
+            GL_CALL(glBufferData(GL_ARRAY_BUFFER, fontRenderData.mGlyphScales.size() * sizeof(glm::vec3), NULL, GL_DYNAMIC_DRAW));
+            GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, fontRenderData.mGlyphScales.size() * sizeof(glm::vec3), fontRenderData.mGlyphScales.data()));
+            
+            // update the min uvs buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontCustomMinUVBuffer));
+            GL_CALL(glBufferData(GL_ARRAY_BUFFER, fontRenderData.mGlyphMinUVs.size() * sizeof(glm::vec2), NULL, GL_DYNAMIC_DRAW));
+            GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, fontRenderData.mGlyphMinUVs.size() * sizeof(glm::vec2), fontRenderData.mGlyphMinUVs.data()));
+            
+            // update the max uvs buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontCustomMaxUVBuffer));
+            GL_CALL(glBufferData(GL_ARRAY_BUFFER, fontRenderData.mGlyphMaxUVs.size() * sizeof(glm::vec2), NULL, GL_DYNAMIC_DRAW));
+            GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, fontRenderData.mGlyphMaxUVs.size() * sizeof(glm::vec2), fontRenderData.mGlyphMaxUVs.data()));
+            
+            // update the alphas buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontAlphaBuffer));
+            GL_CALL(glBufferData(GL_ARRAY_BUFFER, fontRenderData.mGlyphAlphas.size() * sizeof(float), NULL, GL_DYNAMIC_DRAW));
+            GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, fontRenderData.mGlyphAlphas.size() * sizeof(float), fontRenderData.mGlyphAlphas.data()));
+            
+            // vertex buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontVertexBuffer));
+            GL_CALL(glVertexAttribPointer(0, 3 , GL_FLOAT, GL_FALSE , 0 , nullptr));
+            
+            // uv buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontUVBuffer));
+            GL_CALL(glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE , 0 , nullptr));
+            
+            // position buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontPositionBuffer));
+            GL_CALL(glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE , 0 , nullptr));
+            GL_CALL(glVertexAttribDivisor(2, 1));
+            
+            // scales buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontScaleBuffer));
+            GL_CALL(glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE , 0 , nullptr));
+            GL_CALL(glVertexAttribDivisor(3, 1));
+            
+            // min uvs buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontCustomMinUVBuffer));
+            GL_CALL(glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE , 0 , nullptr));
+            GL_CALL(glVertexAttribDivisor(4, 1));
+            
+            // max uvs buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontCustomMaxUVBuffer));
+            GL_CALL(glVertexAttribPointer(5, 2, GL_FLOAT, GL_FALSE , 0 , nullptr));
+            GL_CALL(glVertexAttribDivisor(5, 1));
+            
+            // alphas buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontAlphaBuffer));
+            GL_CALL(glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE , 0 , nullptr));
+            GL_CALL(glVertexAttribDivisor(6, 1));
+            
+            // draw triangles
+            GL_CALL(glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<int>(fontRenderData.mGlyphPositions.size())));
+            
+            GL_CALL(glDisableVertexAttribArray(0));
+            GL_CALL(glDisableVertexAttribArray(1));
+            GL_CALL(glDisableVertexAttribArray(2));
+            GL_CALL(glDisableVertexAttribArray(3));
+            GL_CALL(glDisableVertexAttribArray(4));
+            GL_CALL(glDisableVertexAttribArray(5));
+            GL_CALL(glDisableVertexAttribArray(6));
+            
+            GL_CALL(glBindVertexArray(0));
+        }
+    }
+}
+
+
+
+}
+
+///------------------------------------------------------------------------------------------------
