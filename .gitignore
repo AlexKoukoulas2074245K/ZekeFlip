@@ -78,3 +78,4 @@ xcuserdata/
 # random shit
 *.DS_Store
 *.xcuserstate
+*imgui.ini
