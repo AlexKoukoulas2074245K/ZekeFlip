@@ -68,6 +68,13 @@ vcpkg_installed/
 Testing/
 .cache/
 
+# Xcode user-specific files
+xcuserdata/
+*.xcuserstate
+
+# Optional: also ignore workspace user data
+*.xcworkspace/xcuserdata/
+
 # random shit
 *.DS_Store
 *.xcuserstate
