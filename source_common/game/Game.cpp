@@ -74,7 +74,10 @@ void Game::Init()
     systemsEngine.GetSoundManager().SetAudioEnabled(false);
     
     auto scene = systemsEngine.GetSceneManager().CreateScene(game_constants::WORLD_SCENE_NAME);
+    
+
     scene->GetCamera().SetCameraType(rendering::Camera::CameraType::PERSPECTIVE);
+    
     scene->SetLoaded(true);
     
     auto& eventSystem = events::EventSystem::GetInstance();
@@ -87,17 +90,35 @@ void Game::Init()
     auto board = scene->CreateSceneObject(strutils::StringId("board"));
     board->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + "flip_board.obj");
     board->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + "game/board_tex.png");
-    board->mRotation.x = 0.34f;
+    board->mRotation.x = 0.0f;
     board->mScale = glm::vec3(0.5f);
+    
+    for (int row = 0; row < 5; ++row)
+    {
+        for (int col = 0; col < 5; ++col)
+        {
+            auto coin = scene->CreateSceneObject(strutils::StringId("coin" + std::to_string(row) + "," + std::to_string(col)));
+            coin->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + "flip_card.obj");
+            coin->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + "game/flip_card_poop_tex.png");
+            coin->mPosition.x = -0.185f + col * 0.09f;
+            coin->mPosition.z = -0.185f + row * 0.09f;
+            coin->mPosition.y = 0.121f;
+            
+            coin->mScale = glm::vec3(0.03f);
+        }
+    }
     
     scene = systemsEngine.GetSceneManager().CreateScene(game_constants::GUI_SCENE_NAME);
     scene->GetCamera().SetCameraType(rendering::Camera::CameraType::ORTHO);
     scene->SetLoaded(true);
     
-    mTestButton = std::make_unique<AnimatedButton>(glm::vec3(-0.0f, 0.0f, 1.0f), glm::vec3(0.0005f), game_constants::DEFAULT_FONT_NAME, "Test my limits, left and right :)", strutils::StringId("test_button"), [](){}, scene);
+    //mTestButton = std::make_unique<AnimatedButton>(glm::vec3(-0.0f, 0.0f, 1.0f), glm::vec3(0.0005f), game_constants::DEFAULT_FONT_NAME, "Test my limits, left and right :)", strutils::StringId("test_button"), [](){}, scene);
 }
 
 ///------------------------------------------------------------------------------------------------
+
+static glm::vec3 sNextCameraPosition;
+static glm::vec3 sNextCameraFront;
 
 void Game::Update(const float dtMillis)
 {
@@ -105,6 +126,39 @@ void Game::Update(const float dtMillis)
     {
         mTestButton->Update(dtMillis);
     }
+    
+    auto scene = CoreSystemsEngine::GetInstance().GetSceneManager().FindScene(game_constants::WORLD_SCENE_NAME);
+    if (scene)
+    {
+        static bool firstTime = true;
+        if (firstTime)
+        {
+            firstTime = false;
+            
+            const auto& windowDimensions = CoreSystemsEngine::GetInstance().GetContextRenderableDimensions();
+            const auto& currentAspect = static_cast<float>(windowDimensions.x)/windowDimensions.y;
+            
+            auto minPosition = glm::vec3(0.03f, 1.140f, 0.026f);
+            auto minFront = glm::vec3(0.0f, -30.0f, -1.235f);
+            
+            auto maxPosition = glm::vec3(0.0f, 0.6f, 0.229f);
+            auto maxFront = glm::vec3(0.0f, -2.154f, -1.0f);
+            
+            auto minAspect = 0.4625f;
+            auto maxAspect = 1.0f;
+            
+            // Normalize aspect to [0, 1]
+            float t = (currentAspect - minAspect)/(maxAspect - minAspect);
+            t = glm::clamp(t, 0.0f, 1.0f);
+            
+            sNextCameraPosition = glm::mix(minPosition, maxPosition, t);
+            sNextCameraFront = glm::mix(minFront, maxFront, t);
+        }
+    }
+    
+    scene->GetCamera().SetPosition(sNextCameraPosition);
+    scene->GetCamera().SetFront(sNextCameraFront);
+    
 }
 
 ///------------------------------------------------------------------------------------------------
@@ -123,6 +177,37 @@ void Game::OnOneSecondElapsed()
 
 void Game::WindowResize()
 {
+    auto scene = CoreSystemsEngine::GetInstance().GetSceneManager().FindScene(game_constants::WORLD_SCENE_NAME);
+    if (scene)
+    {
+        const auto& windowDimensions = CoreSystemsEngine::GetInstance().GetContextRenderableDimensions();
+        const auto& currentAspect = static_cast<float>(windowDimensions.x)/windowDimensions.y;
+        
+        auto minPosition = glm::vec3(0.03f, 1.140f, 0.026f);
+        auto minFront = glm::vec3(0.0f, -30.0f, -1.235f);
+        
+        auto maxPosition = glm::vec3(0.0f, 0.6f, 0.229f);
+        auto maxFront = glm::vec3(0.0f, -2.154f, -1.0f);
+        
+        auto minAspect = 0.4625f;
+        auto maxAspect = 1.0f;
+        
+        // Normalize aspect to [0, 1]
+        float t = (currentAspect - minAspect)/(maxAspect - minAspect);
+        t = glm::clamp(t, 0.0f, 1.0f);
+        
+        auto nextPosition = glm::mix(minPosition, maxPosition, t);
+        auto nextFront = glm::mix(minFront, maxFront, t);
+        
+        static const auto CAM_POS_ANIMATION_NAME = strutils::StringId("camera_position_tween");
+        static const auto CAM_FRONT_ANIMATION_NAME = strutils::StringId("camera_front_tween");
+        
+        CoreSystemsEngine::GetInstance().GetAnimationManager().StopAnimation(CAM_POS_ANIMATION_NAME);
+        CoreSystemsEngine::GetInstance().GetAnimationManager().StopAnimation(CAM_FRONT_ANIMATION_NAME);
+        
+        CoreSystemsEngine::GetInstance().GetAnimationManager().StartAnimation(std::make_unique<rendering::TweenValueAnimation<glm::vec3>>(sNextCameraPosition, nextPosition, 1.0f), [](){}, CAM_POS_ANIMATION_NAME);
+        CoreSystemsEngine::GetInstance().GetAnimationManager().StartAnimation(std::make_unique<rendering::TweenValueAnimation<glm::vec3>>(sNextCameraFront, nextFront, 1.0f), [](){}, CAM_FRONT_ANIMATION_NAME);
+    }
 }
 
 ///------------------------------------------------------------------------------------------------

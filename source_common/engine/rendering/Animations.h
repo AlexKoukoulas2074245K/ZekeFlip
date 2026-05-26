@@ -169,17 +169,33 @@ private:
 };
 
 ///------------------------------------------------------------------------------------------------
+template<class T>
 class TweenValueAnimation final: public BaseAnimation
 {
 public:
-    TweenValueAnimation(float& value, const float targetValue, const float secsDuration, const uint8_t animationFlags = animation_flags::NONE, const float secsDelay = 0.0f, const std::function<float(const float)> tweeningFunc = math::LinearFunction, const math::TweeningMode tweeningMode = math::TweeningMode::EASE_IN);
-    AnimationUpdateResult VUpdate(const float dtMillis) override;
-    std::shared_ptr<scene::SceneObject> VGetSceneObject() override;
+    TweenValueAnimation(T& value, const T targetValue, const float secsDuration, const uint8_t animationFlags = animation_flags::NONE, const float secsDelay = 0.0f, const std::function<float(const float)> tweeningFunc = math::LinearFunction, const math::TweeningMode tweeningMode = math::TweeningMode::EASE_IN)
+    : BaseAnimation(animationFlags, secsDuration, secsDelay)
+    , mValue(value)
+    , mInitValue(value)
+    , mTargetValue(targetValue)
+    , mTweeningFunc(tweeningFunc)
+    , mTweeningMode(tweeningMode)
+    {
+    }
+    
+    AnimationUpdateResult VUpdate(const float dtMillis) override
+    {
+        auto animationUpdateResult = BaseAnimation::VUpdate(dtMillis);
+        mValue = glm::mix(mInitValue, mTargetValue, math::TweenValue(mAnimationT, mTweeningFunc, mTweeningMode));
+        return animationUpdateResult;
+    }
+    
+    std::shared_ptr<scene::SceneObject> VGetSceneObject() override { return nullptr; };
     
 private:
-    float& mValue;
-    const float mInitValue;
-    const float mTargetValue;
+    T& mValue;
+    const T mInitValue;
+    const T mTargetValue;
     const std::function<float(const float)> mTweeningFunc;
     const math::TweeningMode mTweeningMode;
 };

@@ -35,6 +35,8 @@ static const float TARGET_FOV           = 60.0f;
 
 Camera::Camera()
     : mPosition(DEFAULT_PERSP_CAMERA_POSITION)
+    , mFront(DEFAULT_CAMERA_FRONT_VECTOR)
+    , mFieldOfViewDegrees(TARGET_FOV)
 {
     mCameraShakeEndCallback = nullptr;
     RecalculateMatrices();
@@ -47,16 +49,15 @@ void Camera::RecalculateMatrices()
     const auto& windowDimensions = CoreSystemsEngine::GetInstance().GetContextRenderableDimensions();
     const auto& currentAspect = static_cast<float>(windowDimensions.x)/windowDimensions.y;
 
-    logging::LogInfo("Camera::RecalculateMatrices with aspect=%.6f (w=%.6f,h=%.6f)", currentAspect, windowDimensions.x, windowDimensions.y);
+    //logging::LogInfo("Camera::RecalculateMatrices with fov=%.6f, aspect=%.6f (w=%.6f,h=%.6f)", mFieldOfViewDegrees, currentAspect, windowDimensions.x, windowDimensions.y);
 
-    mView = glm::lookAt(mPosition, mPosition + DEFAULT_CAMERA_FRONT_VECTOR, DEFAULT_CAMERA_UP_VECTOR);
+    mView = glm::lookAt(mPosition, mPosition + mFront, DEFAULT_CAMERA_UP_VECTOR);
     switch (mCameraType)
     {
         case CameraType::PERSPECTIVE:
         {
             // Calculate vertical FOV needed to achieve the target hor FOV
-            float verticalFOV = 2.0f * std::atan(std::tan(glm::radians(TARGET_FOV)/2.0f) / currentAspect);
-            mProj = glm::perspective(verticalFOV, currentAspect, DEFAULT_CAMERA_ZNEAR, DEFAULT_CAMERA_ZFAR);
+            mProj = glm::perspective(glm::radians(mFieldOfViewDegrees), currentAspect, DEFAULT_CAMERA_ZNEAR, DEFAULT_CAMERA_ZFAR);
         } break;
 
         case CameraType::ORTHO:
@@ -70,9 +71,23 @@ void Camera::RecalculateMatrices()
 
 ///------------------------------------------------------------------------------------------------
 
+const float& Camera::GetFOV() const
+{
+    return mFieldOfViewDegrees;
+}
+
+///------------------------------------------------------------------------------------------------
+
 const glm::vec3& Camera::GetPosition() const
 {
     return mPosition;
+}
+
+///------------------------------------------------------------------------------------------------
+
+const glm::vec3& Camera::GetFront() const
+{
+    return mFront;
 }
 
 ///------------------------------------------------------------------------------------------------
@@ -213,9 +228,25 @@ void Camera::StopShake()
 
 ///------------------------------------------------------------------------------------------------
 
+void Camera::SetFOV(const float fovDegrees)
+{
+    mFieldOfViewDegrees = fovDegrees;
+    RecalculateMatrices();
+}
+
+///------------------------------------------------------------------------------------------------
+
 void Camera::SetPosition(const glm::vec3& position)
 {
     mPosition = position;
+    RecalculateMatrices();
+}
+
+///------------------------------------------------------------------------------------------------
+
+void Camera::SetFront(const glm::vec3& front)
+{
+    mFront = front;
     RecalculateMatrices();
 }
 

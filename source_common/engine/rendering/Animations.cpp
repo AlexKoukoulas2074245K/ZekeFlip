@@ -258,34 +258,6 @@ std::shared_ptr<scene::SceneObject> TweenAlphaAnimation::VGetSceneObject()
 
 ///------------------------------------------------------------------------------------------------
 
-TweenValueAnimation::TweenValueAnimation(float& value, const float targetValue, const float secsDuration, const uint8_t animationFlags /* = animation_flags::NONE */, const float secsDelay /* = 0.0f */, const std::function<float(const float)> tweeningFunc /* = math::LinearFunction */, const math::TweeningMode tweeningMode /* = math::TweeningMode::EASE_IN */)
-    : BaseAnimation(animationFlags, secsDuration, secsDelay)
-    , mValue(value)
-    , mInitValue(value)
-    , mTargetValue(targetValue)
-    , mTweeningFunc(tweeningFunc)
-    , mTweeningMode(tweeningMode)
-{
-    assert(!IS_FLAG_SET(animation_flags::ANIMATE_CONTINUOUSLY));
-    assert(!IS_FLAG_SET(animation_flags::IGNORE_X_COMPONENT));
-    assert(!IS_FLAG_SET(animation_flags::IGNORE_Y_COMPONENT));
-    assert(!IS_FLAG_SET(animation_flags::IGNORE_Z_COMPONENT));
-}
-
-AnimationUpdateResult TweenValueAnimation::VUpdate(const float dtMillis)
-{
-    auto animationUpdateResult = BaseAnimation::VUpdate(dtMillis);
-    mValue = math::Lerp(mInitValue, mTargetValue, math::TweenValue(mAnimationT, mTweeningFunc, mTweeningMode));
-    return animationUpdateResult;
-}
-
-std::shared_ptr<scene::SceneObject> TweenValueAnimation::VGetSceneObject()
-{
-    return nullptr;
-}
-
-///------------------------------------------------------------------------------------------------
-
 PulseAnimation::PulseAnimation(std::shared_ptr<scene::SceneObject> sceneObjectTarget, const float scaleFactor, const float secsPulseDuration, const uint8_t animationFlags /* = animation_flags::NONE */, const float secsDelay /* = 0.0f */, const std::function<float(const float)> tweeningFunc /* = math::LinearFunction */, const math::TweeningMode tweeningMode /* = math::TweeningMode::EASE_IN */)
     : BaseAnimation(animationFlags, (animationFlags & animation_flags::ANIMATE_CONTINUOUSLY) != 0 ? -1.0f : secsPulseDuration * 2.0f, secsDelay)
     , mSceneObjectTarget(sceneObjectTarget)

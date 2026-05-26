@@ -606,13 +606,29 @@ void RendererPlatformImpl::CreateIMGuiWidgets()
         // Camera properties
         if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_None))
         {
+            static float cameraFOV(60.0f);
+            cameraFOV = sceneRef.get().GetCamera().GetFOV();
+            if (ImGui::SliderFloat("fov", &cameraFOV, 0.0f, 1500.f))
+            {
+                sceneRef.get().GetCamera().SetFOV(cameraFOV);
+            }
+            
             static glm::vec3 cameraPos(0.0f);
             cameraPos = sceneRef.get().GetCamera().GetPosition();
-            if(ImGui::SliderFloat("camX", &cameraPos.x , -2.5f, 2.5f) ||
-               ImGui::SliderFloat("camY", &cameraPos.y, -2.5f, 2.5f) ||
-               ImGui::SliderFloat("camZ", &cameraPos.z, -2.5f, 2.5f))
+            if(ImGui::SliderFloat("posX", &cameraPos.x , -2.5f, 2.5f) ||
+               ImGui::SliderFloat("posY", &cameraPos.y, -2.5f, 2.5f) ||
+               ImGui::SliderFloat("posZ", &cameraPos.z, -2.5f, 2.5f))
             {
                 sceneRef.get().GetCamera().SetPosition(cameraPos);
+            }
+            
+            static glm::vec3 cameraFront(0.0f);
+            cameraFront = sceneRef.get().GetCamera().GetFront();
+            if(ImGui::SliderFloat("frontX", &cameraFront.x , -2.5f, 2.5f) ||
+               ImGui::SliderFloat("frontY", &cameraFront.y, -2.5f, 2.5f) ||
+               ImGui::SliderFloat("frontZ", &cameraFront.z, -2.5f, 2.5f))
+            {
+                sceneRef.get().GetCamera().SetFront(cameraFront);
             }
         }
         

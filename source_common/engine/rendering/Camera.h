@@ -35,7 +35,9 @@ public:
     
     void RecalculateMatrices();
     
+    const float& GetFOV() const;
     const glm::vec3& GetPosition() const;
+    const glm::vec3& GetFront() const;
     const glm::mat4& GetViewMatrix() const;
     const glm::mat4& GetProjMatrix() const;
     math::Frustum CalculateFrustum() const;
@@ -52,7 +54,9 @@ public:
     void StopShake();
     
     void Update(const float dtMillis);
+    void SetFOV(const float fovDegrees);
     void SetPosition(const glm::vec3& position);
+    void SetFront(const glm::vec3& front);
     void SetCameraType(const CameraType cameraType);
 
 private:
@@ -71,8 +75,10 @@ private:
     CameraType mCameraType;
     ShakeData mShakeData;
     glm::vec3 mPosition;
+    glm::vec3 mFront;
     glm::mat4 mView;
     glm::mat4 mProj;
+    float mFieldOfViewDegrees;
     std::function<void()> mCameraShakeEndCallback;
 };
 
