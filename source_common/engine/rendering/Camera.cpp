@@ -26,9 +26,10 @@ static const glm::vec3 DEFAULT_ORTHO_CAMERA_POSITION = {0.0f, 0.0f, 50.0f};
 static const glm::vec3 DEFAULT_CAMERA_FRONT_VECTOR = {0.0f, 0.0f, -1.0f};
 static const glm::vec3 DEFAULT_CAMERA_UP_VECTOR    = {0.0f, 1.0f, 0.0f};
 
-static const float DEFAULT_CAMERA_ZNEAR       = 0.1f;
-static const float DEFAULT_CAMERA_ZFAR        = 100.f;
-static const float SHAKE_MIN_RADIUS           = 0.00001f;
+static const float DEFAULT_CAMERA_ZNEAR = 0.1f;
+static const float DEFAULT_CAMERA_ZFAR  = 100.f;
+static const float SHAKE_MIN_RADIUS     = 0.00001f;
+static const float TARGET_FOV           = 60.0f;
 
 ///------------------------------------------------------------------------------------------------
 
@@ -46,18 +47,23 @@ void Camera::RecalculateMatrices()
     const auto& windowDimensions = CoreSystemsEngine::GetInstance().GetContextRenderableDimensions();
     const auto& currentAspect = static_cast<float>(windowDimensions.x)/windowDimensions.y;
 
+    logging::LogInfo("Camera::RecalculateMatrices with aspect=%.6f (w=%.6f,h=%.6f)", currentAspect, windowDimensions.x, windowDimensions.y);
+
     mView = glm::lookAt(mPosition, mPosition + DEFAULT_CAMERA_FRONT_VECTOR, DEFAULT_CAMERA_UP_VECTOR);
-    
     switch (mCameraType)
     {
         case CameraType::PERSPECTIVE:
         {
-            mProj = glm::perspective(glm::radians(45.0f), currentAspect, DEFAULT_CAMERA_ZNEAR, DEFAULT_CAMERA_ZFAR);
+            // Calculate vertical FOV needed to achieve the target hor FOV
+            float verticalFOV = 2.0f * std::atan(std::tan(glm::radians(TARGET_FOV)/2.0f) / currentAspect);
+            mProj = glm::perspective(verticalFOV, currentAspect, DEFAULT_CAMERA_ZNEAR, DEFAULT_CAMERA_ZFAR);
         } break;
 
         case CameraType::ORTHO:
         {
-            mProj = glm::ortho(-currentAspect/2.0f, currentAspect/2.0f, -1.0f/2.0f, 1.0f/2.0f, DEFAULT_CAMERA_ZNEAR, DEFAULT_CAMERA_ZFAR);
+            float targetWidth = 1.0f;
+            float height = targetWidth / currentAspect;
+            mProj = glm::ortho(-targetWidth/2.0f, targetWidth/2.0f, -height/2.0f, height/2.0f, DEFAULT_CAMERA_ZNEAR, DEFAULT_CAMERA_ZFAR);
         } break;
     }
 }
