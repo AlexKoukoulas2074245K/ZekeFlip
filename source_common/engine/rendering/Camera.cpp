@@ -21,39 +21,20 @@ namespace rendering
 
 ///------------------------------------------------------------------------------------------------
 
-static const glm::vec3 DEFAULT_CAMERA_POSITION     = {0.0f, 0.0f, -5.0f};
+static const glm::vec3 DEFAULT_PERSP_CAMERA_POSITION = {0.0f, 0.339f, 1.129f};
+static const glm::vec3 DEFAULT_ORTHO_CAMERA_POSITION = {0.0f, 0.0f, 50.0f};
 static const glm::vec3 DEFAULT_CAMERA_FRONT_VECTOR = {0.0f, 0.0f, -1.0f};
 static const glm::vec3 DEFAULT_CAMERA_UP_VECTOR    = {0.0f, 1.0f, 0.0f};
 
-static const float DEFAULT_CAMERA_LENSE_HEIGHT = 30.0f;
-static const float DEVICE_INVARIABLE_ASPECT = 0.46f;
-static const float DEFAULT_CAMERA_ZNEAR       = -50.0f;
-static const float DEFAULT_CAMERA_ZFAR        = 50.0f;
-static const float DEFAULT_CAMERA_ZOOM_FACTOR = 60.0f;
-static const float SHAKE_MIN_RADIUS = 0.00001f;
-
-#if defined(MOBILE_FLOW)
-//static const float IPAD_TARGET_LANDSCAPE_ZOOM_FACTOR = 48.483414f;
-//static const float IPAD_TARGET_PORTRAIT_ZOOM_FACTOR = 20.0f;
-#endif
+static const float DEFAULT_CAMERA_ZNEAR       = 0.1f;
+static const float DEFAULT_CAMERA_ZFAR        = 100.f;
+static const float SHAKE_MIN_RADIUS           = 0.00001f;
 
 ///------------------------------------------------------------------------------------------------
 
 Camera::Camera()
-: Camera(DEFAULT_CAMERA_LENSE_HEIGHT)
+    : mPosition(DEFAULT_PERSP_CAMERA_POSITION)
 {
-    
-}
-
-///------------------------------------------------------------------------------------------------
-
-Camera::Camera(const float cameraLenseHeight)
-    : mZoomFactor(DEFAULT_CAMERA_ZOOM_FACTOR)
-    , mTargetAspectRatio(CoreSystemsEngine::GetInstance().GetDefaultAspectRatio())
-    , mPosition(DEFAULT_CAMERA_POSITION)
-{
-    mCameraLenseWidth = cameraLenseHeight * DEVICE_INVARIABLE_ASPECT;
-    mCameraLenseHeight = cameraLenseHeight;
     mCameraShakeEndCallback = nullptr;
     RecalculateMatrices();
 }
@@ -62,39 +43,23 @@ Camera::Camera(const float cameraLenseHeight)
 
 void Camera::RecalculateMatrices()
 {
-    //float previousZoomFactor = mZoomFactor;
     const auto& windowDimensions = CoreSystemsEngine::GetInstance().GetContextRenderableDimensions();
     const auto& currentAspect = static_cast<float>(windowDimensions.x)/windowDimensions.y;
-    const auto& currentToDefaultAspectRatio = (currentAspect/mTargetAspectRatio + 1.0f)/2.0f;
-    float zoomFactor = mZoomFactor * currentToDefaultAspectRatio;
-    //logging::Log(logging::LogType::INFO, "Recalculating Matrices for %.3f, %.3f (AR %.6f)", windowDimensions.x, windowDimensions.y, windowDimensions.x/windowDimensions.y);
-    
-    float aspect = windowDimensions.x/windowDimensions.y;
+
     mView = glm::lookAt(mPosition, mPosition + DEFAULT_CAMERA_FRONT_VECTOR, DEFAULT_CAMERA_UP_VECTOR);
-    mProj = glm::ortho((-mCameraLenseWidth/(DEVICE_INVARIABLE_ASPECT/aspect))/2.0f/zoomFactor, (mCameraLenseWidth/((DEVICE_INVARIABLE_ASPECT/aspect)))/2.0f/zoomFactor, -mCameraLenseHeight/2.0f/zoomFactor, mCameraLenseHeight/2.0f/zoomFactor, DEFAULT_CAMERA_ZNEAR, DEFAULT_CAMERA_ZFAR);
     
-    mTargetAspectRatio = currentAspect;
-}
+    switch (mCameraType)
+    {
+        case CameraType::PERSPECTIVE:
+        {
+            mProj = glm::perspective(glm::radians(45.0f), currentAspect, DEFAULT_CAMERA_ZNEAR, DEFAULT_CAMERA_ZFAR);
+        } break;
 
-///------------------------------------------------------------------------------------------------
-
-float Camera::GetZoomFactor() const
-{
-    return mZoomFactor;
-}
-
-///------------------------------------------------------------------------------------------------
-
-float Camera::GetCameraLenseWidth() const
-{
-    return mCameraLenseWidth;
-}
-
-///------------------------------------------------------------------------------------------------
-
-float Camera::GetCameraLenseHeight() const
-{
-    return mCameraLenseHeight;
+        case CameraType::ORTHO:
+        {
+            mProj = glm::ortho(-currentAspect/2.0f, currentAspect/2.0f, -1.0f/2.0f, 1.0f/2.0f, DEFAULT_CAMERA_ZNEAR, DEFAULT_CAMERA_ZFAR);
+        } break;
+    }
 }
 
 ///------------------------------------------------------------------------------------------------
@@ -242,18 +207,29 @@ void Camera::StopShake()
 
 ///------------------------------------------------------------------------------------------------
 
-void Camera::SetZoomFactor(const float zoomFactor)
+void Camera::SetPosition(const glm::vec3& position)
 {
-    mZoomFactor = zoomFactor;
+    mPosition = position;
     RecalculateMatrices();
 }
 
 ///------------------------------------------------------------------------------------------------
 
-void Camera::SetPosition(const glm::vec3& position)
+void Camera::SetCameraType(const CameraType cameraType)
 {
-    mPosition = position;
-    RecalculateMatrices();
+    mCameraType = cameraType;
+    switch (mCameraType)
+    {
+        case CameraType::PERSPECTIVE:
+        {
+            SetPosition(DEFAULT_PERSP_CAMERA_POSITION);
+        } break;
+        
+        case CameraType::ORTHO:
+        {
+            SetPosition(DEFAULT_ORTHO_CAMERA_POSITION);
+        } break;
+    }
 }
 
 ///------------------------------------------------------------------------------------------------

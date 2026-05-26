@@ -25,15 +25,16 @@ class Camera final
 public:
     static const float DEFAULT_SHAKE_STRENGTH_RADIUS;
     
+    enum class CameraType
+    {
+        ORTHO, PERSPECTIVE
+    };
+
 public:
     Camera();
-    Camera(const float cameraLenseHeight);
     
     void RecalculateMatrices();
     
-    float GetZoomFactor() const;
-    float GetCameraLenseWidth() const;
-    float GetCameraLenseHeight() const;
     const glm::vec3& GetPosition() const;
     const glm::mat4& GetViewMatrix() const;
     const glm::mat4& GetProjMatrix() const;
@@ -51,9 +52,9 @@ public:
     void StopShake();
     
     void Update(const float dtMillis);
-    void SetZoomFactor(const float zoomFactor);
     void SetPosition(const glm::vec3& position);
-    
+    void SetCameraType(const CameraType cameraType);
+
 private:
     struct ShakeData
     {
@@ -67,11 +68,8 @@ private:
         float mShakeInterTremmorAccumMillis = 0.0f;
     };
     
+    CameraType mCameraType;
     ShakeData mShakeData;
-    float mZoomFactor;
-    float mCameraLenseWidth;
-    float mCameraLenseHeight;
-    float mTargetAspectRatio;
     glm::vec3 mPosition;
     glm::mat4 mView;
     glm::mat4 mProj;

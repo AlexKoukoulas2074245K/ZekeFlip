@@ -614,13 +614,6 @@ void RendererPlatformImpl::CreateIMGuiWidgets()
             {
                 sceneRef.get().GetCamera().SetPosition(cameraPos);
             }
-            
-            static float cameraZoomFactor(0.0f);
-            cameraZoomFactor = sceneRef.get().GetCamera().GetZoomFactor();
-            if (ImGui::SliderFloat("zoom", &cameraZoomFactor, 10.0f, 200.0f))
-            {
-                sceneRef.get().GetCamera().SetZoomFactor(cameraZoomFactor);
-            }
         }
         
         ImGui::Text("SO Filtering:");

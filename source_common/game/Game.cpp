@@ -74,7 +74,7 @@ void Game::Init()
     systemsEngine.GetSoundManager().SetAudioEnabled(false);
     
     auto scene = systemsEngine.GetSceneManager().CreateScene(game_constants::WORLD_SCENE_NAME);
-    scene->GetCamera().SetZoomFactor(50.0f);
+    scene->GetCamera().SetCameraType(rendering::Camera::CameraType::PERSPECTIVE);
     scene->SetLoaded(true);
     
     auto& eventSystem = events::EventSystem::GetInstance();
@@ -84,13 +84,17 @@ void Game::Init()
 //        const auto& mapResources = mMapResourceController->GetMapResources(event.mNewMapName);
 //        mCurrentNavmap = mapResources.mNavmap;
 //    });
-    
+    auto board = scene->CreateSceneObject(strutils::StringId("board"));
+    board->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + "flip_board.obj");
+    board->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + "game/board_tex.png");
+    board->mRotation.x = 0.34f;
+    board->mScale = glm::vec3(0.5f);
     
     scene = systemsEngine.GetSceneManager().CreateScene(game_constants::GUI_SCENE_NAME);
-    scene->GetCamera().SetZoomFactor(50.0f);
+    scene->GetCamera().SetCameraType(rendering::Camera::CameraType::ORTHO);
     scene->SetLoaded(true);
     
-    mTestButton = std::make_unique<AnimatedButton>(glm::vec3(-0.0f, 0.0f, 1.0f), glm::vec3(0.0001f), game_constants::DEFAULT_FONT_NAME, "Test my limits, left and right :)", strutils::StringId("test_button"), [](){}, scene);
+    mTestButton = std::make_unique<AnimatedButton>(glm::vec3(-0.0f, 0.0f, 1.0f), glm::vec3(0.0005f), game_constants::DEFAULT_FONT_NAME, "Test my limits, left and right :)", strutils::StringId("test_button"), [](){}, scene);
 }
 
 ///------------------------------------------------------------------------------------------------
