@@ -416,20 +416,14 @@ inline int RandomSign()
 }
 
 ///-----------------------------------------------------------------------------------------------
-/// Computes and returns the mouse coords in ndc space
-/// @param[in] windowWidth the width of the current window.
-/// @param[in] windowHeight the height of the current window.
-/// @returns the computed mouse coords.
-glm::vec2 ComputeMouseCoordsInNDC(const float windowWidth, const float windowHeight);
-
-///-----------------------------------------------------------------------------------------------
 /// Computes a ray direction from the current mouse coordinates on the focused window values.
+/// @param[in] pointingPos active input device's pointing position (from InputStateManager)
 /// @param[in] viewMatrix the current view matrix.
 /// @param[in] projMatrix the current projection matrix.
 /// @param[in] windowWidth the width of the current window.
 /// @param[in] windowHeight the height of the current window.
 /// @returns the computed ray direction.
-glm::vec3 ComputeMouseRayDirection(const glm::mat4& viewMatrix, const glm::mat4& projMatrix, const float windowWidth, const float windowHeight);
+glm::vec3 ComputePointingRayDirection(const glm::vec2& pointingPos, const glm::mat4& viewMatrix, const glm::mat4& projMatrix, const float windowWidth, const float windowHeight);
 
 ///-----------------------------------------------------------------------------------------------
 /// Computes and returns whether the given position point is inside the given sphere.

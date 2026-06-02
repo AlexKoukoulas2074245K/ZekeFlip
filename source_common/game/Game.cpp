@@ -112,6 +112,7 @@ void Game::Init()
             auto card = scene->CreateSceneObject(strutils::StringId(CARD_SO_NAME_PREFIX + std::to_string(row) + "," + std::to_string(col)));
             card->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + CARD_MESH);
             card->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + CARD_TEXTURE);
+            card->mShaderFloatUniformValues[CUSTOM_ALPHA_UNIFORM_NAME] = 1.0f;
             card->mPosition.x = -0.185f + col * 0.09f;
             card->mPosition.z = -0.185f + row * 0.09f;
             card->mPosition.y = 0.121f;
@@ -141,39 +142,48 @@ void Game::Update(const float dtMillis)
     
     auto scene = CoreSystemsEngine::GetInstance().GetSceneManager().FindScene(game_constants::WORLD_SCENE_NAME);
     
-    if (scene)
+    if (scene && CoreSystemsEngine::GetInstance().GetInputStateManager().VButtonTapped(input::Button::MAIN_BUTTON))
     {
         std::shared_ptr<scene::SceneObject> bestPickedCardCandidate = nullptr;
-        float bestPickedCardCandidateDistanceFromCenter = 100.0f;
+        float bestPickedCardCandidateDistanceFromCenter = FLT_MAX;
         
         auto cards = scene->FindSceneObjectsWhoseNameStartsWith(CARD_SO_NAME_PREFIX);
-        auto pointingPos = CoreSystemsEngine::GetInstance().GetInputStateManager().VGetPointingPosInWorldSpace(scene->GetCamera().GetViewMatrix(), scene->GetCamera().GetProjMatrix());
+        const auto& camera = scene->GetCamera();
+        const auto& windowDimensions = CoreSystemsEngine::GetInstance().GetContextRenderableDimensions();
+        
+        auto rayOrigin = camera.GetPosition();
+        auto rayDirection = math::ComputePointingRayDirection(
+            CoreSystemsEngine::GetInstance().GetInputStateManager().VGetPointingPos(),
+            camera.GetViewMatrix(),
+            camera.GetProjMatrix(),
+            static_cast<float>(windowDimensions.x),
+            static_cast<float>(windowDimensions.y));
         
         for (auto card: cards)
         {
             // Reset alpha
-            card->mShaderFloatUniformValues[CUSTOM_ALPHA_UNIFORM_NAME] = 1.0f;
+            //card->mShaderFloatUniformValues[CUSTOM_ALPHA_UNIFORM_NAME] = 1.0f;
             
             // Intersection test
-            float distanceFromColliderCenter;
+            float t;
             auto boundingRect = scene_object_utils::GetSceneObjectBoundingRect(*card);
-            if (math::PointInSphereTest(
-                glm::vec3(pointingPos.x, pointingPos.y, card->mPosition.z),
-                card->mPosition,
-                math::Max(math::Abs(boundingRect.bottomLeft.x - boundingRect.topRight.x), math::Abs(boundingRect.bottomLeft.y - boundingRect.topRight.y)) * 1.5f,
-                distanceFromColliderCenter))
+            float sphereRadius = math::Max(math::Abs(boundingRect.bottomLeft.x - boundingRect.topRight.x), math::Abs(boundingRect.bottomLeft.y - boundingRect.topRight.y)) * 1.5f;
+
+            if (math::RayToSphereIntersection(rayOrigin, rayDirection, card->mPosition, sphereRadius, t))
             {
-                if (distanceFromColliderCenter < bestPickedCardCandidateDistanceFromCenter)
+                if (t < bestPickedCardCandidateDistanceFromCenter)
                 {
                     bestPickedCardCandidate = card;
-                    bestPickedCardCandidateDistanceFromCenter = distanceFromColliderCenter;
+                    bestPickedCardCandidateDistanceFromCenter = t;
                 }
             }
         }
         
         if (bestPickedCardCandidate)
         {
-            bestPickedCardCandidate->mShaderFloatUniformValues[CUSTOM_ALPHA_UNIFORM_NAME] = 0.5f;
+            bestPickedCardCandidate->mTextureResourceId = bestPickedCardCandidate->mTextureResourceId == CoreSystemsEngine::GetInstance().GetResourceLoadingService().GetResourceIdFromPath(resources::ResourceLoadingService::RES_TEXTURES_ROOT + CARD_TEXTURE, false) ?
+                CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + game_constants::DEFAULT_TEXTURE_NAME) :
+                CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + CARD_TEXTURE);
         }
     }
     
