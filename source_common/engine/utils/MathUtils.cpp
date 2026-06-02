@@ -104,9 +104,10 @@ glm::vec3 ComputeMouseRayDirection(const glm::mat4& viewMatrix, const glm::mat4&
 
 ///-----------------------------------------------------------------------------------------------
 
-bool PointInSphereTest(const glm::vec3& posPoint, const glm::vec3& sphereCenter, const float sphereRadius)
+bool PointInSphereTest(const glm::vec3& posPoint, const glm::vec3& sphereCenter, const float sphereRadius, float& pointDistanceToCenter)
 {
-    return glm::distance(sphereCenter, posPoint) < sphereRadius;
+    pointDistanceToCenter = glm::distance(sphereCenter, posPoint);
+    return pointDistanceToCenter < sphereRadius;
 }
 
 ///------------------------------------------------------------------------------------------------

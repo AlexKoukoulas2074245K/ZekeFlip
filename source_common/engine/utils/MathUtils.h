@@ -437,8 +437,9 @@ glm::vec3 ComputeMouseRayDirection(const glm::mat4& viewMatrix, const glm::mat4&
 /// @param[in] posPoint position point to test.
 /// @param[in] sphereCenter the center of the sphere.
 /// @param[in] sphereRadius the radius of the sphere.
+/// @param[out] pointDistanceToCenter the distance between the point and the sphere's center
 /// @returns whether the point is inside the sphere.
-bool PointInSphereTest(const glm::vec3& posPoint, const glm::vec3& sphereCenter, const float sphereRadius);
+bool PointInSphereTest(const glm::vec3& posPoint, const glm::vec3& sphereCenter, const float sphereRadius, float& pointDistanceToCenter);
 
 ///-----------------------------------------------------------------------------------------------
 /// Computes and returns whether the two given spheres intersect.

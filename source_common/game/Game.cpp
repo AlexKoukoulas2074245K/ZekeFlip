@@ -47,6 +47,18 @@
 
 ///------------------------------------------------------------------------------------------------
 
+static const strutils::StringId DEBUG_SPHERE_COLLIDER_NAME = strutils::StringId("debug_sphere_collider");
+static const strutils::StringId BOARD_SO_NAME = strutils::StringId("board");
+
+static const std::string BOARD_MESH = "flip_board.obj";
+static const std::string BOARD_TEXTURE = "game/board_tex.png";
+static const std::string CARD_MESH = "flip_card.obj";
+static const std::string CARD_TEXTURE = "game/flip_card_poop_tex.png";
+static const std::string CARD_SO_NAME_PREFIX = "card_";
+static const std::string DEBUG_SPHERE_MESH = "sphere.obj";
+
+///------------------------------------------------------------------------------------------------
+
 Game::Game(const int argc, char** argv)
 {
     if (argc > 0)
@@ -87,9 +99,9 @@ void Game::Init()
 //        const auto& mapResources = mMapResourceController->GetMapResources(event.mNewMapName);
 //        mCurrentNavmap = mapResources.mNavmap;
 //    });
-    auto board = scene->CreateSceneObject(strutils::StringId("board"));
-    board->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + "flip_board.obj");
-    board->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + "game/board_tex.png");
+    auto board = scene->CreateSceneObject(BOARD_SO_NAME);
+    board->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + BOARD_MESH);
+    board->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + BOARD_TEXTURE);
     board->mRotation.x = 0.0f;
     board->mScale = glm::vec3(0.5f);
     
@@ -97,14 +109,14 @@ void Game::Init()
     {
         for (int col = 0; col < 5; ++col)
         {
-            auto coin = scene->CreateSceneObject(strutils::StringId("coin" + std::to_string(row) + "," + std::to_string(col)));
-            coin->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + "flip_card.obj");
-            coin->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + "game/flip_card_poop_tex.png");
-            coin->mPosition.x = -0.185f + col * 0.09f;
-            coin->mPosition.z = -0.185f + row * 0.09f;
-            coin->mPosition.y = 0.121f;
+            auto card = scene->CreateSceneObject(strutils::StringId(CARD_SO_NAME_PREFIX + std::to_string(row) + "," + std::to_string(col)));
+            card->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + CARD_MESH);
+            card->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + CARD_TEXTURE);
+            card->mPosition.x = -0.185f + col * 0.09f;
+            card->mPosition.z = -0.185f + row * 0.09f;
+            card->mPosition.y = 0.121f;
             
-            coin->mScale = glm::vec3(0.03f);
+            card->mScale = glm::vec3(0.03f);
         }
     }
     
@@ -128,9 +140,46 @@ void Game::Update(const float dtMillis)
     }
     
     auto scene = CoreSystemsEngine::GetInstance().GetSceneManager().FindScene(game_constants::WORLD_SCENE_NAME);
+    
     if (scene)
     {
-        static bool firstTime = true;
+        std::shared_ptr<scene::SceneObject> bestPickedCardCandidate = nullptr;
+        float bestPickedCardCandidateDistanceFromCenter = 100.0f;
+        
+        auto cards = scene->FindSceneObjectsWhoseNameStartsWith(CARD_SO_NAME_PREFIX);
+        auto pointingPos = CoreSystemsEngine::GetInstance().GetInputStateManager().VGetPointingPosInWorldSpace(scene->GetCamera().GetViewMatrix(), scene->GetCamera().GetProjMatrix());
+        
+        for (auto card: cards)
+        {
+            // Reset alpha
+            card->mShaderFloatUniformValues[CUSTOM_ALPHA_UNIFORM_NAME] = 1.0f;
+            
+            // Intersection test
+            float distanceFromColliderCenter;
+            auto boundingRect = scene_object_utils::GetSceneObjectBoundingRect(*card);
+            if (math::PointInSphereTest(
+                glm::vec3(pointingPos.x, pointingPos.y, card->mPosition.z),
+                card->mPosition,
+                math::Max(math::Abs(boundingRect.bottomLeft.x - boundingRect.topRight.x), math::Abs(boundingRect.bottomLeft.y - boundingRect.topRight.y)) * 1.5f,
+                distanceFromColliderCenter))
+            {
+                if (distanceFromColliderCenter < bestPickedCardCandidateDistanceFromCenter)
+                {
+                    bestPickedCardCandidate = card;
+                    bestPickedCardCandidateDistanceFromCenter = distanceFromColliderCenter;
+                }
+            }
+        }
+        
+        if (bestPickedCardCandidate)
+        {
+            bestPickedCardCandidate->mShaderFloatUniformValues[CUSTOM_ALPHA_UNIFORM_NAME] = 0.5f;
+        }
+    }
+    
+    if (scene)
+    {
+        static  bool firstTime = true;
         if (firstTime)
         {
             firstTime = false;
@@ -215,6 +264,35 @@ void Game::WindowResize()
 #if defined(USE_IMGUI)
 void Game::CreateDebugWidgets()
 {
+    ImGui::Begin("Game Debug", nullptr, GLOBAL_IMGUI_WINDOW_FLAGS);
+    
+    {
+        static bool sShowColliders = false;
+        if (ImGui::Checkbox("Show Colliders", &sShowColliders))
+        {
+            auto scene = CoreSystemsEngine::GetInstance().GetSceneManager().FindScene(game_constants::WORLD_SCENE_NAME);
+            if (scene)
+            {
+                scene->RemoveAllSceneObjectsWithName(DEBUG_SPHERE_COLLIDER_NAME);
+                
+                if (sShowColliders)
+                {
+                    auto cardSceneObjects = scene->FindSceneObjectsWhoseNameStartsWith(CARD_SO_NAME_PREFIX);
+                    for (auto cardSceneObject: cardSceneObjects)
+                    {
+                        auto boundingRect = scene_object_utils::GetSceneObjectBoundingRect(*cardSceneObject);
+                        auto debugCollider = scene->CreateSceneObject(DEBUG_SPHERE_COLLIDER_NAME);
+                        debugCollider->mPosition = cardSceneObject->mPosition;
+                        debugCollider->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + DEBUG_SPHERE_MESH);
+                        debugCollider->mScale = glm::vec3(math::Max(math::Abs(boundingRect.bottomLeft.x - boundingRect.topRight.x), math::Abs(boundingRect.bottomLeft.y - boundingRect.topRight.y))) * 1.5f;
+                        debugCollider->mShaderFloatUniformValues[CUSTOM_ALPHA_UNIFORM_NAME] = 0.5f;
+                    }
+                }
+            }
+        }
+    }
+    
+    ImGui::End();
 }
 #else
 void Game::CreateDebugWidgets()
