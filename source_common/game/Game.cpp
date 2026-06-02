@@ -125,13 +125,10 @@ void Game::Init()
     scene->GetCamera().SetCameraType(rendering::Camera::CameraType::ORTHO);
     scene->SetLoaded(true);
     
-    //mTestButton = std::make_unique<AnimatedButton>(glm::vec3(-0.0f, 0.0f, 1.0f), glm::vec3(0.0005f), game_constants::DEFAULT_FONT_NAME, "Test my limits, left and right :)", strutils::StringId("test_button"), [](){}, scene);
+    ResetCameraPosition();
 }
 
 ///------------------------------------------------------------------------------------------------
-
-static glm::vec3 sNextCameraPosition;
-static glm::vec3 sNextCameraFront;
 
 void Game::Update(const float dtMillis)
 {
@@ -162,37 +159,6 @@ void Game::Update(const float dtMillis)
             mFlippedCards.push_back(cardPickResult.selectedCard);
         }
     }
-    
-    if (scene)
-    {
-        static  bool firstTime = true;
-        if (firstTime)
-        {
-            firstTime = false;
-            
-            const auto& windowDimensions = CoreSystemsEngine::GetInstance().GetContextRenderableDimensions();
-            const auto& currentAspect = static_cast<float>(windowDimensions.x)/windowDimensions.y;
-            
-            auto minPosition = glm::vec3(0.03f, 1.140f, 0.026f);
-            auto minFront = glm::vec3(0.0f, -30.0f, -1.235f);
-            
-            auto maxPosition = glm::vec3(0.0f, 0.6f, 0.229f);
-            auto maxFront = glm::vec3(0.0f, -2.154f, -1.0f);
-            
-            auto minAspect = 0.4625f;
-            auto maxAspect = 1.0f;
-            
-            // Normalize aspect to [0, 1]
-            float t = (currentAspect - minAspect)/(maxAspect - minAspect);
-            t = glm::clamp(t, 0.0f, 1.0f);
-            
-            sNextCameraPosition = glm::mix(minPosition, maxPosition, t);
-            sNextCameraFront = glm::mix(minFront, maxFront, t);
-        }
-    }
-    
-    scene->GetCamera().SetPosition(sNextCameraPosition);
-    scene->GetCamera().SetFront(sNextCameraFront);
 }
 
 ///------------------------------------------------------------------------------------------------
@@ -210,6 +176,13 @@ void Game::OnOneSecondElapsed()
 ///------------------------------------------------------------------------------------------------
 
 void Game::WindowResize()
+{
+    ResetCameraPosition();
+}
+
+///------------------------------------------------------------------------------------------------
+
+void Game::ResetCameraPosition()
 {
     auto scene = CoreSystemsEngine::GetInstance().GetSceneManager().FindScene(game_constants::WORLD_SCENE_NAME);
     if (scene)
@@ -233,16 +206,8 @@ void Game::WindowResize()
         auto nextPosition = glm::mix(minPosition, maxPosition, t);
         auto nextFront = glm::mix(minFront, maxFront, t);
         
-        static const auto CAM_POS_ANIMATION_NAME = strutils::StringId("camera_position_tween");
-        static const auto CAM_FRONT_ANIMATION_NAME = strutils::StringId("camera_front_tween");
-        
-        auto& animationManager = CoreSystemsEngine::GetInstance().GetAnimationManager();
-        
-        animationManager.StopAnimation(CAM_POS_ANIMATION_NAME);
-        animationManager.StopAnimation(CAM_FRONT_ANIMATION_NAME);
-        
-        animationManager.StartAnimation(std::make_unique<rendering::TweenValueToTargetAnimation<glm::vec3>>(sNextCameraPosition, nextPosition, 1.0f), [](){}, CAM_POS_ANIMATION_NAME);
-        animationManager.StartAnimation(std::make_unique<rendering::TweenValueToTargetAnimation<glm::vec3>>(sNextCameraFront, nextFront, 1.0f), [](){}, CAM_FRONT_ANIMATION_NAME);
+        scene->GetCamera().SetPosition(nextPosition);
+        scene->GetCamera().SetFront(nextFront);
     }
 }
 

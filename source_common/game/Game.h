@@ -39,6 +39,7 @@ public:
     void CreateDebugWidgets();
 
 private:
+    void ResetCameraPosition();
     void CardHoveringAnimation();
     
     struct CardPickingResult
