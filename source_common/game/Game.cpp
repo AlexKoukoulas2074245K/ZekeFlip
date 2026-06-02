@@ -48,6 +48,7 @@
 ///------------------------------------------------------------------------------------------------
 
 static const std::string CARD_SO_NAME_PREFIX = "card_";
+static const std::string CARD_FLIP_ANIMATION_NAME_PREFIX = "flip_animation_";
 
 ///------------------------------------------------------------------------------------------------
 
@@ -148,6 +149,22 @@ void Game::Update(const float dtMillis)
     
     if (scene)
     {
+        auto cardPickResult = PickPointedCard();
+        if (cardPickResult.selectedCard && CoreSystemsEngine::GetInstance().GetInputStateManager().VButtonTapped(input::Button::MAIN_BUTTON))
+        {
+            // Stop existing animation
+            auto hoverResetAnimationName = strutils::StringId(CARD_FLIP_ANIMATION_NAME_PREFIX + cardPickResult.selectedCard->mName.GetString());
+            auto& animationManager = CoreSystemsEngine::GetInstance().GetAnimationManager();
+            animationManager.StopAnimation(hoverResetAnimationName);
+            
+            // And flip it
+            animationManager.StartAnimation(std::make_unique<rendering::TweenValueToTargetAnimation<float>>(cardPickResult.selectedCard->mRotation.z, -math::PI, 0.5f, animation_flags::NONE, 0.0f, math::ElasticFunction, math::TweeningMode::EASE_IN), [](){}, hoverResetAnimationName);
+            mFlippedCards.push_back(cardPickResult.selectedCard);
+        }
+    }
+    
+    if (scene)
+    {
         static  bool firstTime = true;
         if (firstTime)
         {
@@ -238,10 +255,54 @@ void Game::CardHoveringAnimation()
     {
         return;
     }
-
-    std::shared_ptr<scene::SceneObject> bestPickedCardCandidate = nullptr;
-    float bestPickedCardCandidateDistanceFromCenter = FLT_MAX;
     
+    auto cardPickResult = PickPointedCard();
+    if (cardPickResult.selectedCard)
+    {
+        // Hover card rotation
+        static const float HOVER_MAG_VALUE = 3.0f;
+        cardPickResult.selectedCard->mRotation.z = cardPickResult.distanceFromCardCenter * HOVER_MAG_VALUE;
+    }
+    
+    // Reset rotation on all cards
+    auto cards = scene->FindSceneObjectsWhoseNameStartsWith(CARD_SO_NAME_PREFIX);
+    for (auto card: cards)
+    {
+        if (std::find(mFlippedCards.cbegin(), mFlippedCards.cend(), card) != mFlippedCards.cend())
+        {
+            continue;
+        }
+
+        auto hoverResetAnimationName = strutils::StringId(CARD_FLIP_ANIMATION_NAME_PREFIX + card->mName.GetString());
+        auto& animationManager = CoreSystemsEngine::GetInstance().GetAnimationManager();
+        
+        if (card == cardPickResult.selectedCard)
+        {
+            animationManager.StopAnimation(hoverResetAnimationName);
+        }
+        else
+        {
+            if (!animationManager.IsAnimationPlaying(hoverResetAnimationName))
+            {
+                animationManager.StartAnimation(std::make_unique<rendering::TweenValueToTargetAnimation<float>>(card->mRotation.z, 0.0f, 0.5f, animation_flags::NONE, 0.0f, math::ElasticFunction, math::TweeningMode::EASE_IN), [](){}, hoverResetAnimationName);
+            }
+        }
+    }
+}
+
+///------------------------------------------------------------------------------------------------
+
+Game::CardPickingResult Game::PickPointedCard()
+{
+    CardPickingResult pickingResult = {};
+    pickingResult.distanceFromCardCenter = FLT_MAX;
+
+    auto scene = CoreSystemsEngine::GetInstance().GetSceneManager().FindScene(game_constants::WORLD_SCENE_NAME);
+    if (!scene)
+    {
+        return pickingResult;
+    }
+
     auto cards = scene->FindSceneObjectsWhoseNameStartsWith(CARD_SO_NAME_PREFIX);
     const auto& camera = scene->GetCamera();
     const auto& windowDimensions = CoreSystemsEngine::GetInstance().GetContextRenderableDimensions();
@@ -256,7 +317,12 @@ void Game::CardHoveringAnimation()
     
     for (auto card: cards)
     {
-        card->mRotation.z = card->mRotation.x = 0.0f;
+        // Ignore flipped ones
+        if (std::find(mFlippedCards.cbegin(), mFlippedCards.cend(), card) != mFlippedCards.cend())
+        {
+            continue;
+        }
+        
         // Intersection test
         float t;
         auto boundingRect = scene_object_utils::GetSceneObjectBoundingRect(*card);
@@ -264,22 +330,23 @@ void Game::CardHoveringAnimation()
 
         if (math::RayToSphereIntersection(rayOrigin, rayDirection, card->mPosition, sphereRadius, t))
         {
-            if (t < bestPickedCardCandidateDistanceFromCenter)
+            if (t < pickingResult.distanceFromCardCenter)
             {
-                bestPickedCardCandidate = card;
-                bestPickedCardCandidateDistanceFromCenter = t;
+                pickingResult.selectedCard = card;
+                pickingResult.distanceFromCardCenter = t;
             }
         }
     }
     
-    if (bestPickedCardCandidate)
+    // Calculate distance from card plane center
+    if (pickingResult.selectedCard)
     {
         glm::vec3 planeIntersectionPoint;
-        math::RayToPlaneIntersection(rayOrigin, rayDirection, bestPickedCardCandidate->mPosition, glm::vec3(0.0f, 1.0f, 0.0f), planeIntersectionPoint);
-        
-        static const float HOVER_MAG_VALUE = 10.0f;
-        bestPickedCardCandidate->mRotation.z = (bestPickedCardCandidate->mPosition.x - planeIntersectionPoint.x) * HOVER_MAG_VALUE;
+        math::RayToPlaneIntersection(rayOrigin, rayDirection, pickingResult.selectedCard->mPosition, glm::vec3(0.0f, 1.0f, 0.0f), planeIntersectionPoint);
+        pickingResult.distanceFromCardCenter = (pickingResult.selectedCard->mPosition.x - planeIntersectionPoint.x);
     }
+    
+    return pickingResult;
 }
 
 ///------------------------------------------------------------------------------------------------

@@ -40,9 +40,18 @@ public:
 
 private:
     void CardHoveringAnimation();
+    
+    struct CardPickingResult
+    {
+        std::shared_ptr<scene::SceneObject> selectedCard;
+        float distanceFromCardCenter;
+    };
+    
+    CardPickingResult PickPointedCard();
 
 private:
     std::unique_ptr<AnimatedButton> mTestButton;
+    std::vector<std::shared_ptr<scene::SceneObject>> mFlippedCards;
 };
 
 ///------------------------------------------------------------------------------------------------
