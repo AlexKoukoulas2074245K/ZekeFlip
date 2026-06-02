@@ -256,6 +256,7 @@ void Game::CardHoveringAnimation()
     
     for (auto card: cards)
     {
+        card->mRotation.z = card->mRotation.x = 0.0f;
         // Intersection test
         float t;
         auto boundingRect = scene_object_utils::GetSceneObjectBoundingRect(*card);
@@ -266,25 +267,18 @@ void Game::CardHoveringAnimation()
             if (t < bestPickedCardCandidateDistanceFromCenter)
             {
                 bestPickedCardCandidate = card;
-                bestPickedCardCandidateDistanceFromCenter = glm::distance(card->mPosition, rayOrigin + rayDirection * t);
+                bestPickedCardCandidateDistanceFromCenter = t;
             }
         }
     }
     
     if (bestPickedCardCandidate)
     {
-        logging::LogInfo("Distance from center: %.6f", bestPickedCardCandidateDistanceFromCenter);
-//        static const std::string CARD_HOVERING_ANIMATION_NAME_PREFIX = "hovering_animation_";
-//        
-//        auto targetHoveringAnimationName = strutils::StringId(CARD_HOVERING_ANIMATION_NAME_PREFIX + bestPickedCardCandidate->mName.GetString());
-//        auto& animationManager =  CoreSystemsEngine::GetInstance().GetAnimationManager();
-//        
-//        if (!animationManager.IsAnimationPlaying(targetHoveringAnimationName))
-//        {
-//            //animationManager.StartAnimation(std::make_unique<rendering::TimeDelayAnimation>(), [](){}, targetHoveringAnimationName);
-//            bestPickedCardCandidate->mRotation.z = -math::PI/8.0f;
-//            animationManager.StartAnimation(std::make_unique<rendering::DampenValueAnimation<float>>(bestPickedCardCandidate->mRotation.z, 2.0f, 0.5f, animation_flags::NONE, 0.0f), [](){}, targetHoveringAnimationName);
-//        }
+        glm::vec3 planeIntersectionPoint;
+        math::RayToPlaneIntersection(rayOrigin, rayDirection, bestPickedCardCandidate->mPosition, glm::vec3(0.0f, 1.0f, 0.0f), planeIntersectionPoint);
+        
+        static const float HOVER_MAG_VALUE = 10.0f;
+        bestPickedCardCandidate->mRotation.z = (bestPickedCardCandidate->mPosition.x - planeIntersectionPoint.x) * HOVER_MAG_VALUE;
     }
 }
 
