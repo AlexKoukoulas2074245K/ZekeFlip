@@ -39,6 +39,9 @@ public:
     void CreateDebugWidgets();
 
 private:
+    void CardHoveringAnimation();
+
+private:
     std::unique_ptr<AnimatedButton> mTestButton;
 };
 

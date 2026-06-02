@@ -16,6 +16,13 @@ namespace input
 
 ///------------------------------------------------------------------------------------------------
 
+void InputStateManagerPlatformImpl::VInitialize()
+{
+    mPointingPos.x = mPointingPos.x = -1.0f;
+}
+
+///------------------------------------------------------------------------------------------------
+
 const glm::vec2& InputStateManagerPlatformImpl::VGetPointingPos() const
 {
     return mPointingPos;

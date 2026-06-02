@@ -165,6 +165,7 @@ void CoreSystemsEngine::Initialize()
     mSystems->mRenderer.VInitialize();
     mSystems->mResourceLoadingService.Initialize();
     mSystems->mSoundManager.Initialize();
+    mSystems->mInputStateManager.VInitialize();
     
     // Enable texture blending
     GL_CALL(glEnable(GL_BLEND));

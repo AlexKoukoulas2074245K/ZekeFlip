@@ -47,15 +47,7 @@
 
 ///------------------------------------------------------------------------------------------------
 
-static const strutils::StringId DEBUG_SPHERE_COLLIDER_NAME = strutils::StringId("debug_sphere_collider");
-static const strutils::StringId BOARD_SO_NAME = strutils::StringId("board");
-
-static const std::string BOARD_MESH = "flip_board.obj";
-static const std::string BOARD_TEXTURE = "game/board_tex.png";
-static const std::string CARD_MESH = "flip_card.obj";
-static const std::string CARD_TEXTURE = "game/flip_card_poop_tex.png";
 static const std::string CARD_SO_NAME_PREFIX = "card_";
-static const std::string DEBUG_SPHERE_MESH = "sphere.obj";
 
 ///------------------------------------------------------------------------------------------------
 
@@ -99,6 +91,13 @@ void Game::Init()
 //        const auto& mapResources = mMapResourceController->GetMapResources(event.mNewMapName);
 //        mCurrentNavmap = mapResources.mNavmap;
 //    });
+    
+    static const strutils::StringId BOARD_SO_NAME = strutils::StringId("board");
+    static const std::string BOARD_MESH = "flip_board.obj";
+    static const std::string BOARD_TEXTURE = "game/board_tex.png";
+    static const std::string CARD_MESH = "flip_card.obj";
+    static const std::string CARD_TEXTURE = "game/flip_card_poop_tex.png";
+    
     auto board = scene->CreateSceneObject(BOARD_SO_NAME);
     board->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + BOARD_MESH);
     board->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + BOARD_TEXTURE);
@@ -142,50 +141,10 @@ void Game::Update(const float dtMillis)
     
     auto scene = CoreSystemsEngine::GetInstance().GetSceneManager().FindScene(game_constants::WORLD_SCENE_NAME);
     
-    if (scene && CoreSystemsEngine::GetInstance().GetInputStateManager().VButtonTapped(input::Button::MAIN_BUTTON))
-    {
-        std::shared_ptr<scene::SceneObject> bestPickedCardCandidate = nullptr;
-        float bestPickedCardCandidateDistanceFromCenter = FLT_MAX;
-        
-        auto cards = scene->FindSceneObjectsWhoseNameStartsWith(CARD_SO_NAME_PREFIX);
-        const auto& camera = scene->GetCamera();
-        const auto& windowDimensions = CoreSystemsEngine::GetInstance().GetContextRenderableDimensions();
-        
-        auto rayOrigin = camera.GetPosition();
-        auto rayDirection = math::ComputePointingRayDirection(
-            CoreSystemsEngine::GetInstance().GetInputStateManager().VGetPointingPos(),
-            camera.GetViewMatrix(),
-            camera.GetProjMatrix(),
-            static_cast<float>(windowDimensions.x),
-            static_cast<float>(windowDimensions.y));
-        
-        for (auto card: cards)
-        {
-            // Reset alpha
-            //card->mShaderFloatUniformValues[CUSTOM_ALPHA_UNIFORM_NAME] = 1.0f;
-            
-            // Intersection test
-            float t;
-            auto boundingRect = scene_object_utils::GetSceneObjectBoundingRect(*card);
-            float sphereRadius = math::Max(math::Abs(boundingRect.bottomLeft.x - boundingRect.topRight.x), math::Abs(boundingRect.bottomLeft.y - boundingRect.topRight.y)) * 1.5f;
-
-            if (math::RayToSphereIntersection(rayOrigin, rayDirection, card->mPosition, sphereRadius, t))
-            {
-                if (t < bestPickedCardCandidateDistanceFromCenter)
-                {
-                    bestPickedCardCandidate = card;
-                    bestPickedCardCandidateDistanceFromCenter = t;
-                }
-            }
-        }
-        
-        if (bestPickedCardCandidate)
-        {
-            bestPickedCardCandidate->mTextureResourceId = bestPickedCardCandidate->mTextureResourceId == CoreSystemsEngine::GetInstance().GetResourceLoadingService().GetResourceIdFromPath(resources::ResourceLoadingService::RES_TEXTURES_ROOT + CARD_TEXTURE, false) ?
-                CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + game_constants::DEFAULT_TEXTURE_NAME) :
-                CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + CARD_TEXTURE);
-        }
-    }
+    // Desktop only, card hovering animation
+#if defined(DESKTOP_FLOW)
+    CardHoveringAnimation();
+#endif
     
     if (scene)
     {
@@ -217,7 +176,6 @@ void Game::Update(const float dtMillis)
     
     scene->GetCamera().SetPosition(sNextCameraPosition);
     scene->GetCamera().SetFront(sNextCameraFront);
-    
 }
 
 ///------------------------------------------------------------------------------------------------
@@ -261,11 +219,72 @@ void Game::WindowResize()
         static const auto CAM_POS_ANIMATION_NAME = strutils::StringId("camera_position_tween");
         static const auto CAM_FRONT_ANIMATION_NAME = strutils::StringId("camera_front_tween");
         
-        CoreSystemsEngine::GetInstance().GetAnimationManager().StopAnimation(CAM_POS_ANIMATION_NAME);
-        CoreSystemsEngine::GetInstance().GetAnimationManager().StopAnimation(CAM_FRONT_ANIMATION_NAME);
+        auto& animationManager = CoreSystemsEngine::GetInstance().GetAnimationManager();
         
-        CoreSystemsEngine::GetInstance().GetAnimationManager().StartAnimation(std::make_unique<rendering::TweenValueAnimation<glm::vec3>>(sNextCameraPosition, nextPosition, 1.0f), [](){}, CAM_POS_ANIMATION_NAME);
-        CoreSystemsEngine::GetInstance().GetAnimationManager().StartAnimation(std::make_unique<rendering::TweenValueAnimation<glm::vec3>>(sNextCameraFront, nextFront, 1.0f), [](){}, CAM_FRONT_ANIMATION_NAME);
+        animationManager.StopAnimation(CAM_POS_ANIMATION_NAME);
+        animationManager.StopAnimation(CAM_FRONT_ANIMATION_NAME);
+        
+        animationManager.StartAnimation(std::make_unique<rendering::TweenValueToTargetAnimation<glm::vec3>>(sNextCameraPosition, nextPosition, 1.0f), [](){}, CAM_POS_ANIMATION_NAME);
+        animationManager.StartAnimation(std::make_unique<rendering::TweenValueToTargetAnimation<glm::vec3>>(sNextCameraFront, nextFront, 1.0f), [](){}, CAM_FRONT_ANIMATION_NAME);
+    }
+}
+
+///------------------------------------------------------------------------------------------------
+
+void Game::CardHoveringAnimation()
+{
+    auto scene = CoreSystemsEngine::GetInstance().GetSceneManager().FindScene(game_constants::WORLD_SCENE_NAME);
+    if (!scene)
+    {
+        return;
+    }
+
+    std::shared_ptr<scene::SceneObject> bestPickedCardCandidate = nullptr;
+    float bestPickedCardCandidateDistanceFromCenter = FLT_MAX;
+    
+    auto cards = scene->FindSceneObjectsWhoseNameStartsWith(CARD_SO_NAME_PREFIX);
+    const auto& camera = scene->GetCamera();
+    const auto& windowDimensions = CoreSystemsEngine::GetInstance().GetContextRenderableDimensions();
+    
+    auto rayOrigin = camera.GetPosition();
+    auto rayDirection = math::ComputePointingRayDirection(
+        CoreSystemsEngine::GetInstance().GetInputStateManager().VGetPointingPos(),
+        camera.GetViewMatrix(),
+        camera.GetProjMatrix(),
+        static_cast<float>(windowDimensions.x),
+        static_cast<float>(windowDimensions.y));
+    
+    for (auto card: cards)
+    {
+        // Intersection test
+        float t;
+        auto boundingRect = scene_object_utils::GetSceneObjectBoundingRect(*card);
+        float sphereRadius = math::Max(math::Abs(boundingRect.bottomLeft.x - boundingRect.topRight.x), math::Abs(boundingRect.bottomLeft.y - boundingRect.topRight.y)) * 1.5f;
+
+        if (math::RayToSphereIntersection(rayOrigin, rayDirection, card->mPosition, sphereRadius, t))
+        {
+            if (t < bestPickedCardCandidateDistanceFromCenter)
+            {
+                bestPickedCardCandidate = card;
+                bestPickedCardCandidateDistanceFromCenter = glm::distance(card->mPosition, rayOrigin + rayDirection * t);
+            }
+        }
+    }
+    
+    if (bestPickedCardCandidate)
+    {
+        logging::LogInfo("Distance from center: %.6f", bestPickedCardCandidateDistanceFromCenter);
+//        static const std::string CARD_HOVERING_ANIMATION_NAME_PREFIX = "hovering_animation_";
+//        
+//        auto targetHoveringAnimationName = strutils::StringId(CARD_HOVERING_ANIMATION_NAME_PREFIX + bestPickedCardCandidate->mName.GetString());
+//        auto& animationManager =  CoreSystemsEngine::GetInstance().GetAnimationManager();
+//        
+//        if (!animationManager.IsAnimationPlaying(targetHoveringAnimationName))
+//        {
+//            //animationManager.StartAnimation(std::make_unique<rendering::TimeDelayAnimation>(), [](){}, targetHoveringAnimationName);
+//            bestPickedCardCandidate->mRotation.z = -math::PI/8.0f;
+//            animationManager.StartAnimation(std::make_unique<rendering::DampenValueAnimation<float>>(bestPickedCardCandidate->mRotation.z, 2.0f, 0.5f, animation_flags::NONE, 0.0f), [](){}, targetHoveringAnimationName);
+//        }
     }
 }
 
@@ -277,6 +296,7 @@ void Game::CreateDebugWidgets()
     ImGui::Begin("Game Debug", nullptr, GLOBAL_IMGUI_WINDOW_FLAGS);
     
     {
+        static const strutils::StringId DEBUG_SPHERE_COLLIDER_NAME = strutils::StringId("debug_sphere_collider");
         static bool sShowColliders = false;
         if (ImGui::Checkbox("Show Colliders", &sShowColliders))
         {
@@ -290,6 +310,8 @@ void Game::CreateDebugWidgets()
                     auto cardSceneObjects = scene->FindSceneObjectsWhoseNameStartsWith(CARD_SO_NAME_PREFIX);
                     for (auto cardSceneObject: cardSceneObjects)
                     {
+                        static const std::string DEBUG_SPHERE_MESH = "sphere.obj";
+                        
                         auto boundingRect = scene_object_utils::GetSceneObjectBoundingRect(*cardSceneObject);
                         auto debugCollider = scene->CreateSceneObject(DEBUG_SPHERE_COLLIDER_NAME);
                         debugCollider->mPosition = cardSceneObject->mPosition;

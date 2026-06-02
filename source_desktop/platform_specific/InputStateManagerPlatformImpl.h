@@ -27,6 +27,8 @@ class InputStateManagerPlatformImpl final: public IInputStateManager
 {
     friend struct CoreSystemsEngine::SystemsImpl;
 public:
+    void VInitialize() override;
+    
     const glm::vec2& VGetPointingPos() const override;
     const glm::ivec2& VGetScrollDelta() const override;
     glm::vec2 VGetPointingPosInWorldSpace(const glm::mat4& viewMatrix, const glm::mat4& projMatrix) const override;

@@ -169,38 +169,6 @@ private:
 };
 
 ///------------------------------------------------------------------------------------------------
-template<class T>
-class TweenValueAnimation final: public BaseAnimation
-{
-public:
-    TweenValueAnimation(T& value, const T targetValue, const float secsDuration, const uint8_t animationFlags = animation_flags::NONE, const float secsDelay = 0.0f, const std::function<float(const float)> tweeningFunc = math::LinearFunction, const math::TweeningMode tweeningMode = math::TweeningMode::EASE_IN)
-    : BaseAnimation(animationFlags, secsDuration, secsDelay)
-    , mValue(value)
-    , mInitValue(value)
-    , mTargetValue(targetValue)
-    , mTweeningFunc(tweeningFunc)
-    , mTweeningMode(tweeningMode)
-    {
-    }
-    
-    AnimationUpdateResult VUpdate(const float dtMillis) override
-    {
-        auto animationUpdateResult = BaseAnimation::VUpdate(dtMillis);
-        mValue = glm::mix(mInitValue, mTargetValue, math::TweenValue(mAnimationT, mTweeningFunc, mTweeningMode));
-        return animationUpdateResult;
-    }
-    
-    std::shared_ptr<scene::SceneObject> VGetSceneObject() override { return nullptr; };
-    
-private:
-    T& mValue;
-    const T mInitValue;
-    const T mTargetValue;
-    const std::function<float(const float)> mTweeningFunc;
-    const math::TweeningMode mTweeningMode;
-};
-
-///------------------------------------------------------------------------------------------------
 
 class PulseAnimation final: public BaseAnimation
 {
@@ -255,6 +223,64 @@ private:
 };
 
 ///------------------------------------------------------------------------------------------------
+template<class T>
+class TweenValueToTargetAnimation final: public BaseAnimation
+{
+public:
+    TweenValueToTargetAnimation(T& value, const T targetValue, const float secsDuration, const uint8_t animationFlags = animation_flags::NONE, const float secsDelay = 0.0f, const std::function<float(const float)> tweeningFunc = math::LinearFunction, const math::TweeningMode tweeningMode = math::TweeningMode::EASE_IN)
+    : BaseAnimation(animationFlags, secsDuration, secsDelay)
+    , mValue(value)
+    , mInitValue(value)
+    , mTargetValue(targetValue)
+    , mTweeningFunc(tweeningFunc)
+    , mTweeningMode(tweeningMode)
+    {
+    }
+    
+    AnimationUpdateResult VUpdate(const float dtMillis) override
+    {
+        auto animationUpdateResult = BaseAnimation::VUpdate(dtMillis);
+        mValue = glm::mix(mInitValue, mTargetValue, math::TweenValue(mAnimationT, mTweeningFunc, mTweeningMode));
+        return animationUpdateResult;
+    }
+    
+    std::shared_ptr<scene::SceneObject> VGetSceneObject() override { return nullptr; };
+    
+private:
+    T& mValue;
+    const T mInitValue;
+    const T mTargetValue;
+    const std::function<float(const float)> mTweeningFunc;
+    const math::TweeningMode mTweeningMode;
+};
+
+///------------------------------------------------------------------------------------------------
+template<class T>
+class DampenValueAnimation final: public BaseAnimation
+{
+public:
+    DampenValueAnimation(T& value, const float frequencyValue, const float secsDuration, const uint8_t animationFlags = animation_flags::NONE, const float secsDelay = 0.0f)
+    : BaseAnimation(animationFlags, secsDuration, secsDelay)
+    , mValue(value)
+    , mInitValue(value)
+    , mFrequencyValue(frequencyValue)
+    {
+    }
+    
+    AnimationUpdateResult VUpdate(const float dtMillis) override
+    {
+        auto animationUpdateResult = BaseAnimation::VUpdate(dtMillis);
+        mValue = mInitValue * math::Cosf(math::PI * mFrequencyValue * mAnimationT) * std::powf(0.5f, mFrequencyValue * mAnimationT);
+        return animationUpdateResult;
+    }
+    
+    std::shared_ptr<scene::SceneObject> VGetSceneObject() override { return nullptr; };
+    
+private:
+    T& mValue;
+    const T mInitValue;
+    const float mFrequencyValue; // Higher value = more oscillations and vice versa
+};
 
 }
 

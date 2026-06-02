@@ -56,11 +56,13 @@ class IInputStateManager
 {
 public:
     virtual ~IInputStateManager() = default;
-    
+
+    virtual void VInitialize(){};
+
     virtual const glm::vec2& VGetPointingPos() const = 0;
     virtual const glm::ivec2& VGetScrollDelta() const = 0;
     virtual glm::vec2 VGetPointingPosInWorldSpace(const glm::mat4& viewMatrix, const glm::mat4& projMatrix) const = 0;
-    
+        
     virtual bool VButtonPressed(const Button button) const = 0;
     virtual bool VButtonTapped(const Button button) const = 0;
     virtual bool VKeyPressed(const Key key) const = 0;
