@@ -11,9 +11,11 @@
 		081A9A06DFDB6D2DCCCAE343 /* AnimationManager.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EBF846548488DC5997004413 /* AnimationManager.cpp */; };
 		08AE236E40150C6D07B7AF70 /* BaseDataFileSerializer.h in Sources */ = {isa = PBXBuildFile; fileRef = 3F2663D4D8A6185959494E12 /* BaseDataFileSerializer.h */; };
 		0BBF6683EF819A4D125B98A0 /* ThreadSafeQueue.h in Sources */ = {isa = PBXBuildFile; fileRef = 989D5D93E995723F377B2323 /* ThreadSafeQueue.h */; };
+		1A0A06ECB05A6339650AB10F /* BoardState.h in Sources */ = {isa = PBXBuildFile; fileRef = 4398AC9752C488A02F59D8D2 /* BoardState.h */; };
 		1EB158AD6807266C96047A69 /* SerializationDefinitions.h in Sources */ = {isa = PBXBuildFile; fileRef = FCD986CB07334B2433EB426D /* SerializationDefinitions.h */; };
 		29126AABDF932B273DF5D906 /* Editor.h in Sources */ = {isa = PBXBuildFile; fileRef = 88F1CBB8FE5D806DABB02E53 /* Editor.h */; };
 		2DEEC97E3FA3C0533CF8B865 /* AnimationManager.h in Sources */ = {isa = PBXBuildFile; fileRef = 36BA43D12A116F9CEDEEC5BB /* AnimationManager.h */; };
+		375CF744752DAD753E71E484 /* BoardState.h in Sources */ = {isa = PBXBuildFile; fileRef = 4398AC9752C488A02F59D8D2 /* BoardState.h */; };
 		3932349844F41A87BC153A8B /* TypeTraits.cpp in Sources */ = {isa = PBXBuildFile; fileRef = EEE04C21CA0FF05632F35BB0 /* TypeTraits.cpp */; };
 		3BF66DE631A90A5B18DAA6D7 /* ImageSurfaceLoader.h in Sources */ = {isa = PBXBuildFile; fileRef = 809A245389B128D782E60C07 /* ImageSurfaceLoader.h */; };
 		41E7E2FEFA9B22AD3A7B3599 /* AnimatedButton.h in Sources */ = {isa = PBXBuildFile; fileRef = 6166C0765AEB3CD277F0F344 /* AnimatedButton.h */; };
@@ -71,6 +73,7 @@
 		92678D5E2BC6975F0077C215 /* SDL2_image.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 925592C42BA09F3E001D7B97 /* SDL2_image.framework */; };
 		92678D622BC6CA6A0077C215 /* SDL2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 92678D612BC6CA6A0077C215 /* SDL2.framework */; };
 		92678D632BC6CA6A0077C215 /* SDL2.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 92678D612BC6CA6A0077C215 /* SDL2.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		92B70E11E488B7FC538EE2AF /* BoardState.h in Sources */ = {isa = PBXBuildFile; fileRef = 4398AC9752C488A02F59D8D2 /* BoardState.h */; };
 		92C536D12C245161008CD2BF /* AppleSoundUtils.h in Headers */ = {isa = PBXBuildFile; fileRef = 92C536C42C245161008CD2BF /* AppleSoundUtils.h */; };
 		92C536D22C245161008CD2BF /* AppleSoundUtils.mm in Sources */ = {isa = PBXBuildFile; fileRef = 92C536C52C245161008CD2BF /* AppleSoundUtils.mm */; };
 		92C536D32C245161008CD2BF /* AppleUtils.h in Headers */ = {isa = PBXBuildFile; fileRef = 92C536C62C245161008CD2BF /* AppleUtils.h */; };
@@ -93,11 +96,14 @@
 		B370C48D775F88C36EC2D794 /* ZekeFlipClientReachability.h in Sources */ = {isa = PBXBuildFile; fileRef = F216D40C60E4A5AFF4AE2C1E /* ZekeFlipClientReachability.h */; };
 		B3DB0F08953CBEE7D2F5B41B /* ZekeFlipClientReachability.m in Sources */ = {isa = PBXBuildFile; fileRef = A64986DFF49C6EE24DA621FD /* ZekeFlipClientReachability.m */; };
 		B4646BE5AB02E3828791D61E /* SceneObjectUtils.h in Sources */ = {isa = PBXBuildFile; fileRef = 4D44F8A7427AB83EA69F0455 /* SceneObjectUtils.h */; };
+		B804DE2F9BEBBBC2BCB8C13A /* BoardState.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4E48C07AC66C9A5601EE5003 /* BoardState.cpp */; };
 		C59F2802738C1A4F673A8FF7 /* AnimatedButton.h in Sources */ = {isa = PBXBuildFile; fileRef = 6166C0765AEB3CD277F0F344 /* AnimatedButton.h */; };
 		CAFC5CC097FDBAAB25D2E05B /* AnimatedButton.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4291B0197C1CCAA06C6C6D63 /* AnimatedButton.cpp */; };
 		CB369EDB3723CEDB16D2A2FE /* BaseDataFileSerializer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 289376069695D28346FCC23A /* BaseDataFileSerializer.cpp */; };
 		CDD8CCF3F48EB6F564C1E6D6 /* CommonUniforms.h in Sources */ = {isa = PBXBuildFile; fileRef = 5FBD47A19ABACCF82767197C /* CommonUniforms.h */; };
+		DC4584BE8A9D5469716C9E04 /* BoardState.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4E48C07AC66C9A5601EE5003 /* BoardState.cpp */; };
 		DE60B65371427753F78EFC38 /* BaseDataFileDeserializer.h in Sources */ = {isa = PBXBuildFile; fileRef = CA46016D2047CEE613C0ED43 /* BaseDataFileDeserializer.h */; };
+		E02F168FEC19F5B6ECBD096F /* BoardState.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4E48C07AC66C9A5601EE5003 /* BoardState.cpp */; };
 		E5D592440AA9DF7D9C7BBDE5 /* IOSUtils.mm in Sources */ = {isa = PBXBuildFile; fileRef = EEA5D60503CEF24015859459 /* IOSUtils.mm */; };
 		E62596325185C6377F2964D5 /* EditorImGuiCommands.inc in Sources */ = {isa = PBXBuildFile; fileRef = 2FFF150A710419BB275FAF6D /* EditorImGuiCommands.inc */; };
 		E822BAEB6AFB1F91FA785FA4 /* ParticleManager.h in Sources */ = {isa = PBXBuildFile; fileRef = 07E6A4152BAC640B7D892FEF /* ParticleManager.h */; };
@@ -150,9 +156,11 @@
 		388256D6EE42CBA74550DE48 /* Editor.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = Editor.cpp; sourceTree = "<group>"; };
 		3F2663D4D8A6185959494E12 /* BaseDataFileSerializer.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = BaseDataFileSerializer.h; sourceTree = "<group>"; };
 		4291B0197C1CCAA06C6C6D63 /* AnimatedButton.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = AnimatedButton.cpp; sourceTree = "<group>"; };
+		4398AC9752C488A02F59D8D2 /* BoardState.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = BoardState.h; path = BoardState.h; sourceTree = "<group>"; };
 		484A6A1B1B0D7ADC1BEEF99A /* RenderingUtils.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = RenderingUtils.cpp; sourceTree = "<group>"; };
 		4D44F8A7427AB83EA69F0455 /* SceneObjectUtils.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = SceneObjectUtils.h; sourceTree = "<group>"; };
 		4E45BF6E91E8A78C5D531D26 /* SoundManager.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = SoundManager.h; sourceTree = "<group>"; };
+		4E48C07AC66C9A5601EE5003 /* BoardState.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; name = BoardState.cpp; path = BoardState.cpp; sourceTree = "<group>"; };
 		549C84D3FE6BA93E39F0B406 /* EventSystem.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = EventSystem.cpp; sourceTree = "<group>"; };
 		59DF82D26A3BD281A3C982D8 /* ImageSurfaceLoader.cpp */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.cpp.cpp; path = ImageSurfaceLoader.cpp; sourceTree = "<group>"; };
 		5FBD47A19ABACCF82767197C /* CommonUniforms.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; path = CommonUniforms.h; sourceTree = "<group>"; };
@@ -345,6 +353,8 @@
 				B3A902E2D8B1AD656D561A89 /* GameConstants.h */,
 				E9B34BDC795E6602450C2817 /* events */,
 				1003E54D8C8913D2A061990C /* ui */,
+				4E48C07AC66C9A5601EE5003 /* BoardState.cpp */,
+				4398AC9752C488A02F59D8D2 /* BoardState.h */,
 			);
 			path = game;
 			sourceTree = "<group>";
@@ -801,6 +811,8 @@
 				A331989FB0AE2A026AD426B9 /* EditorUtils.h in Sources */,
 				55829FADDA61622F0EF0EB99 /* ZekeFlipClientReachability.h in Sources */,
 				85C41770CE2B0030CEA2530E /* ZekeFlipClientReachability.m in Sources */,
+				DC4584BE8A9D5469716C9E04 /* BoardState.cpp in Sources */,
+				1A0A06ECB05A6339650AB10F /* BoardState.h in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -815,6 +827,8 @@
 				677F932299BE47880C7109AC /* EditorUtils.h in Sources */,
 				ECB22A67621D8BA51C99C575 /* ZekeFlipClientReachability.h in Sources */,
 				4B5EE6B6AF15AF7217A0A53D /* ZekeFlipClientReachability.m in Sources */,
+				E02F168FEC19F5B6ECBD096F /* BoardState.cpp in Sources */,
+				92B70E11E488B7FC538EE2AF /* BoardState.h in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -829,6 +843,8 @@
 				44086937DD07908B28F64CDE /* EditorUtils.h in Sources */,
 				B370C48D775F88C36EC2D794 /* ZekeFlipClientReachability.h in Sources */,
 				B3DB0F08953CBEE7D2F5B41B /* ZekeFlipClientReachability.m in Sources */,
+				B804DE2F9BEBBBC2BCB8C13A /* BoardState.cpp in Sources */,
+				375CF744752DAD753E71E484 /* BoardState.h in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

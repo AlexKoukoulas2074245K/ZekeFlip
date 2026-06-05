@@ -11,6 +11,7 @@
 ///------------------------------------------------------------------------------------------------
 
 #include <engine/utils/StringUtils.h>
+#include <game/BoardState.h>
 
 ///------------------------------------------------------------------------------------------------
 
@@ -22,6 +23,24 @@ namespace events
 class DummyEvent
 {
     
+};
+
+///------------------------------------------------------------------------------------------------
+
+class CardStateChangeEvent
+{
+public:
+    CardStateChangeEvent(const int row, const int col, const CardState newCardState)
+    : mRow(row)
+    , mCol(col)
+    , mNewCardState(newCardState)
+    {
+    }
+
+public:
+    const int mRow;
+    const int mCol;
+    const CardState mNewCardState;
 };
 
 ///------------------------------------------------------------------------------------------------

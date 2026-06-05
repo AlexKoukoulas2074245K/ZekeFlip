@@ -11,8 +11,6 @@
 #include <engine/rendering/Camera.h>
 #include <engine/rendering/CommonUniforms.h>
 #include <engine/rendering/Fonts.h>
-#include <engine/rendering/ParticleManager.h>
-#include <engine/rendering/RenderingUtils.h>
 #include <engine/resloading/ResourceLoadingService.h>
 #include <engine/resloading/ImageSurfaceResource.h>
 #include <engine/scene/SceneManager.h>
@@ -20,18 +18,15 @@
 #include <engine/scene/SceneObject.h>
 #include <engine/scene/SceneObjectUtils.h>
 #include <engine/sound/SoundManager.h>
-#include <engine/utils/BaseDataFileDeserializer.h>
-#include <engine/utils/Date.h>
 #include <engine/utils/Logging.h>
-#include <engine/utils/FileUtils.h>
-#include <engine/utils/OSMessageBox.h>
 #include <engine/utils/PlatformMacros.h>
-#include <fstream>
 #include <game/ui/AnimatedButton.h>
 #include <game/Game.h>
+#include <float.h>
+
+#if defined(USE_IMGUI)
 #include <imgui/imgui.h>
-#include <mutex>
-#include <SDL.h>
+#endif
 
 //#define ALLOW_OFFLINE_PLAY
 #if defined(MOBILE_FLOW)
@@ -49,6 +44,13 @@
 
 static const std::string CARD_SO_NAME_PREFIX = "card_";
 static const std::string CARD_FLIP_ANIMATION_NAME_PREFIX = "flip_animation_";
+static std::unordered_map<CardType, std::string> CARD_TEXTURES =
+{
+    { CardType::ONE,   "game/flip_card_one_tex.png" },
+    { CardType::TWO,   "game/flip_card_two_tex.png" },
+    { CardType::THREE, "game/flip_card_three_tex.png" },
+    { CardType::BOMB,  "game/flip_card_bomb_tex.png" },
+};
 
 ///------------------------------------------------------------------------------------------------
 
@@ -79,14 +81,17 @@ void Game::Init()
     systemsEngine.GetSoundManager().SetAudioEnabled(false);
     
     auto scene = systemsEngine.GetSceneManager().CreateScene(game_constants::WORLD_SCENE_NAME);
-    
 
     scene->GetCamera().SetCameraType(rendering::Camera::CameraType::PERSPECTIVE);
-    
     scene->SetLoaded(true);
     
     auto& eventSystem = events::EventSystem::GetInstance();
-    (void)eventSystem;
+    
+    mCardStateChangeListener = eventSystem.RegisterForEvent<events::CardStateChangeEvent>([this](const events::CardStateChangeEvent& event)
+    {
+        OnCardStateChangeEvent(event);
+    });
+    
 //    mMapChangeEventListener = eventSystem.RegisterForEvent<events::MapChangeEvent>([this](const events::MapChangeEvent& event)
 //    {
 //        const auto& mapResources = mMapResourceController->GetMapResources(event.mNewMapName);
@@ -97,21 +102,22 @@ void Game::Init()
     static const std::string BOARD_MESH = "flip_board.obj";
     static const std::string BOARD_TEXTURE = "game/board_tex.png";
     static const std::string CARD_MESH = "flip_card.obj";
-    static const std::string CARD_TEXTURE = "game/flip_card_poop_tex.png";
+    
+    mBoardState = std::make_unique<BoardState>(5);
     
     auto board = scene->CreateSceneObject(BOARD_SO_NAME);
     board->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + BOARD_MESH);
     board->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + BOARD_TEXTURE);
     board->mRotation.x = 0.0f;
     board->mScale = glm::vec3(0.5f);
-    
-    for (int row = 0; row < 5; ++row)
+ 
+    for (int row = 0; row < mBoardState->GetBoardSize(); ++row)
     {
-        for (int col = 0; col < 5; ++col)
+        for (int col = 0; col < mBoardState->GetBoardSize(); ++col)
         {
             auto card = scene->CreateSceneObject(strutils::StringId(CARD_SO_NAME_PREFIX + std::to_string(row) + "," + std::to_string(col)));
             card->mMeshResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_MESHES_ROOT + CARD_MESH);
-            card->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + CARD_TEXTURE);
+            card->mTextureResourceId = CoreSystemsEngine::GetInstance().GetResourceLoadingService().LoadResource(resources::ResourceLoadingService::RES_TEXTURES_ROOT + CARD_TEXTURES.at(mBoardState->GetCardTypeAt(row, col)));
             card->mShaderFloatUniformValues[CUSTOM_ALPHA_UNIFORM_NAME] = 1.0f;
             card->mPosition.x = -0.185f + col * 0.09f;
             card->mPosition.z = -0.185f + row * 0.09f;
@@ -149,14 +155,8 @@ void Game::Update(const float dtMillis)
         auto cardPickResult = PickPointedCard();
         if (cardPickResult.selectedCard && CoreSystemsEngine::GetInstance().GetInputStateManager().VButtonTapped(input::Button::MAIN_BUTTON))
         {
-            // Stop existing animation
-            auto hoverResetAnimationName = strutils::StringId(CARD_FLIP_ANIMATION_NAME_PREFIX + cardPickResult.selectedCard->mName.GetString());
-            auto& animationManager = CoreSystemsEngine::GetInstance().GetAnimationManager();
-            animationManager.StopAnimation(hoverResetAnimationName);
-            
-            // And flip it
-            animationManager.StartAnimation(std::make_unique<rendering::TweenValueToTargetAnimation<float>>(cardPickResult.selectedCard->mRotation.z, -math::PI, 0.5f, animation_flags::NONE, 0.0f, math::ElasticFunction, math::TweeningMode::EASE_IN), [](){}, hoverResetAnimationName);
-            mFlippedCards.push_back(cardPickResult.selectedCard);
+            auto coords = GetCardSceneObjectBoardCoords(cardPickResult.selectedCard);
+            mBoardState->SetCardStateAt(coords.mRow, coords.mCol, CardState::FLIPPED);
         }
     }
 }
@@ -178,6 +178,43 @@ void Game::OnOneSecondElapsed()
 void Game::WindowResize()
 {
     ResetCameraPosition();
+}
+
+///------------------------------------------------------------------------------------------------
+
+std::shared_ptr<scene::SceneObject> Game::GetCardSceneObjectFromCoords(const CardCoords& coords) const
+{
+    auto scene = CoreSystemsEngine::GetInstance().GetSceneManager().FindScene(game_constants::WORLD_SCENE_NAME);
+    if (scene)
+    {
+        return scene->FindSceneObject(strutils::StringId(CARD_SO_NAME_PREFIX + std::to_string(coords.mRow) + "," + std::to_string(coords.mCol)));
+    }
+    return nullptr;
+}
+
+///------------------------------------------------------------------------------------------------
+
+Game::CardCoords Game::GetCardSceneObjectBoardCoords(std::shared_ptr<scene::SceneObject> card) const
+{
+    auto coords = strutils::StringSplit(strutils::StringSplit(card->mName.GetString(), '_')[1], ',');
+    return CardCoords{std::stoi(coords[0]), std::stoi(coords[1])};
+}
+
+///------------------------------------------------------------------------------------------------
+
+void Game::OnCardStateChangeEvent(const events::CardStateChangeEvent& event)
+{
+    // Find Card
+    auto cardSceneObject = GetCardSceneObjectFromCoords(CardCoords{event.mRow, event.mCol});
+    
+    // Stop existing animation
+    auto hoverResetAnimationName = strutils::StringId(CARD_FLIP_ANIMATION_NAME_PREFIX + cardSceneObject->mName.GetString());
+    auto& animationManager = CoreSystemsEngine::GetInstance().GetAnimationManager();
+    animationManager.StopAnimation(hoverResetAnimationName);
+    
+    // And flip it
+    const auto targetRotation = event.mNewCardState == CardState::FLIPPED ? -math::PI : 0.0f;
+    animationManager.StartAnimation(std::make_unique<rendering::TweenValueToTargetAnimation<float>>(cardSceneObject->mRotation.z, targetRotation, 0.5f, animation_flags::NONE, 0.0f, math::ElasticFunction, math::TweeningMode::EASE_IN), [](){}, hoverResetAnimationName);
 }
 
 ///------------------------------------------------------------------------------------------------
@@ -233,7 +270,8 @@ void Game::CardHoveringAnimation()
     auto cards = scene->FindSceneObjectsWhoseNameStartsWith(CARD_SO_NAME_PREFIX);
     for (auto card: cards)
     {
-        if (std::find(mFlippedCards.cbegin(), mFlippedCards.cend(), card) != mFlippedCards.cend())
+        auto coords = GetCardSceneObjectBoardCoords(card);
+        if (mBoardState->GetCardStateAt(coords.mRow, coords.mCol) == CardState::FLIPPED)
         {
             continue;
         }
@@ -283,7 +321,8 @@ Game::CardPickingResult Game::PickPointedCard()
     for (auto card: cards)
     {
         // Ignore flipped ones
-        if (std::find(mFlippedCards.cbegin(), mFlippedCards.cend(), card) != mFlippedCards.cend())
+        auto coords = GetCardSceneObjectBoardCoords(card);
+        if (mBoardState->GetCardStateAt(coords.mRow, coords.mCol) == CardState::FLIPPED)
         {
             continue;
         }
@@ -351,6 +390,11 @@ void Game::CreateDebugWidgets()
     }
     
     ImGui::End();
+    
+    if (mBoardState)
+    {
+        mBoardState->CreateDebugWidgets();
+    }
 }
 #else
 void Game::CreateDebugWidgets()

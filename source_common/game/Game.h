@@ -14,6 +14,7 @@
 #include <memory>
 #include <engine/utils/MathUtils.h>
 #include <engine/utils/StringUtils.h>
+#include <game/BoardState.h>
 #include <game/events/EventSystem.h>
 #include <vector>
 
@@ -25,6 +26,7 @@ namespace scene
 }
 
 class AnimatedButton;
+class BoardState;
 class Game final
 {
 public:
@@ -39,6 +41,16 @@ public:
     void CreateDebugWidgets();
 
 private:
+    struct CardCoords
+    {
+        int mRow;
+        int mCol;
+    };
+    
+    std::shared_ptr<scene::SceneObject> GetCardSceneObjectFromCoords(const CardCoords& coords) const;
+    CardCoords GetCardSceneObjectBoardCoords(std::shared_ptr<scene::SceneObject> card) const;
+    
+    void OnCardStateChangeEvent(const events::CardStateChangeEvent& event);
     void ResetCameraPosition();
     void CardHoveringAnimation();
     
@@ -52,7 +64,8 @@ private:
 
 private:
     std::unique_ptr<AnimatedButton> mTestButton;
-    std::vector<std::shared_ptr<scene::SceneObject>> mFlippedCards;
+    std::unique_ptr<BoardState> mBoardState;
+    std::unique_ptr<events::IListener> mCardStateChangeListener;
 };
 
 ///------------------------------------------------------------------------------------------------
