@@ -78,6 +78,41 @@ static float sUpdateLogicMillisSamples[PROFILLING_SAMPLE_COUNT];
 static float sRenderingMillisSamples[PROFILLING_SAMPLE_COUNT];
 #endif
 
+static std::function<void()> sWindowResizeFunc = nullptr;
+
+///------------------------------------------------------------------------------------------------
+
+static int ResizeEventWatcher(void* data, SDL_Event* event)
+{
+    if (event->type == SDL_WINDOWEVENT &&
+        event->window.event == SDL_WINDOWEVENT_RESIZED)
+    {
+        auto& engine = CoreSystemsEngine::GetInstance();
+        
+        for (auto& scene: engine.GetSceneManager().GetScenes())
+        {
+            scene->GetCamera().RecalculateMatrices();
+        }
+        
+        if (sWindowResizeFunc)
+        {
+            sWindowResizeFunc();
+        }
+
+        engine.GetRenderer().VBeginRenderPass();
+        for (auto& scene: engine.GetSceneManager().GetScenes())
+        {
+            if (scene->IsLoaded())
+            {
+                engine.GetRenderer().VRenderScene(*scene);
+            }
+        }
+        engine.GetRenderer().VEndRenderPass();
+    }
+        
+    return 0;
+}
+
 ///------------------------------------------------------------------------------------------------
 
 struct CoreSystemsEngine::SystemsImpl
@@ -121,11 +156,12 @@ void CoreSystemsEngine::Initialize()
 
     // Create window
     mWindow = SDL_CreateWindow(WINDOW_TITLE.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL | SDL_WINDOW_INPUT_FOCUS | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-
+    
     // Set minimum window size
     SDL_SetWindowMinimumSize(mWindow, MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT);
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "1");
-        
+    SDL_AddEventWatch(ResizeEventWatcher, nullptr);
+    
     if (!mWindow)
     {
         ospopups::ShowInfoMessageBox(ospopups::MessageBoxType::ERROR, "SDL could not initialize!", SDL_GetError());
@@ -208,6 +244,8 @@ void CoreSystemsEngine::Start(std::function<void()> clientInitFunction, std::fun
 
     clientInitFunction();
     
+    sWindowResizeFunc = clientApplicationWindowResizeFunction;
+    
     //While application is running
     SDL_Event event;
     auto lastFrameMillisSinceInit = 0.0f;
@@ -273,8 +311,8 @@ void CoreSystemsEngine::Start(std::function<void()> clientInitFunction, std::fun
             for (auto& scene: mSystems->mSceneManager.GetScenes())
             {
                 scene->GetCamera().RecalculateMatrices();
-                clientApplicationWindowResizeFunction();
             }
+            clientApplicationWindowResizeFunction();
         }
         
         if (secsAccumulator > 1.0f)
