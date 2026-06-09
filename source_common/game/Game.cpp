@@ -93,7 +93,7 @@ void Game::Init()
     // Systems Init
     auto& systemsEngine = CoreSystemsEngine::GetInstance();
     systemsEngine.GetFontRepository().LoadFont(game_constants::DEFAULT_FONT_NAME.GetString(), resources::ResourceReloadMode::DONT_RELOAD);
-    systemsEngine.GetSoundManager().SetAudioEnabled(false);
+    systemsEngine.GetSoundManager().SetAudioEnabled(true);
     
     // Events
     auto& eventSystem = events::EventSystem::GetInstance();
@@ -112,6 +112,7 @@ void Game::Init()
         auto scene = CoreSystemsEngine::GetInstance().GetSceneManager().FindScene(game_constants::WORLD_SCENE_NAME);
         if (event.mReason == GameEndReason::LOSS)
         {
+            CoreSystemsEngine::GetInstance().GetSoundManager().Vibrate();
             scene->GetCamera().Shake(0.5f, 0.005f);
         }
         
