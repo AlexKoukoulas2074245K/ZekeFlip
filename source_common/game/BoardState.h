@@ -29,6 +29,18 @@ enum class CardState
     FLIPPED
 };
 
+enum class GameEndReason
+{
+    WIN,
+    LOSS
+};
+
+struct Clue
+{
+    int mScoreSum;
+    int mBombCount;
+};
+
 inline const char* GetCardTypeToString(const CardType cardType)
 {
     switch (cardType)
@@ -68,6 +80,12 @@ public:
     CardState GetCardStateAt(const int row, const int col) const;
     void SetCardStateAt(const int row, const int col, const CardState cardState);
     
+    const std::vector<Clue>& GetRowClues() const;
+    const std::vector<Clue>& GetColClues() const;
+    
+    void GenerateBoardBasedOnDifficulty(int difficulty);
+    void CheckAndDispatchEndGameEvents();
+    
     void CreateDebugWidgets();
 private:
     struct CardEntry
@@ -77,6 +95,9 @@ private:
     };
     
     std::vector<std::vector<CardEntry>> mBoard;
+    std::vector<Clue> mRowClues;
+    std::vector<Clue> mColClues;
+    
     const int mBoardSize;
 };
 

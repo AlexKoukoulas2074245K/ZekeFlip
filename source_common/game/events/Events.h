@@ -45,6 +45,38 @@ public:
 
 ///------------------------------------------------------------------------------------------------
 
+class CardTypeChangeEvent
+{
+public:
+    CardTypeChangeEvent(const int row, const int col, const CardType newCardType)
+    : mRow(row)
+    , mCol(col)
+    , mNewCardType(newCardType)
+    {
+    }
+
+public:
+    const int mRow;
+    const int mCol;
+    const CardType mNewCardType;
+};
+
+///------------------------------------------------------------------------------------------------
+
+class GameEndedEvent
+{
+public:
+    GameEndedEvent(const GameEndReason reason)
+    : mReason(reason)
+    {
+    }
+
+public:
+    const GameEndReason mReason;
+};
+
+///------------------------------------------------------------------------------------------------
+
 }
 
 ///------------------------------------------------------------------------------------------------

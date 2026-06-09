@@ -31,6 +31,8 @@ static const float DEFAULT_CAMERA_ZFAR  = 100.f;
 static const float SHAKE_MIN_RADIUS     = 0.00001f;
 static const float TARGET_FOV           = 60.0f;
 
+const float Camera::DEFAULT_SHAKE_STRENGTH_RADIUS = 0.05f;
+
 ///------------------------------------------------------------------------------------------------
 
 Camera::Camera()

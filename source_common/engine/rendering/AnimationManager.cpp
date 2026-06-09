@@ -149,6 +149,14 @@ bool AnimationManager::IsAnimationPlaying(const strutils::StringId& animationNam
 
 ///------------------------------------------------------------------------------------------------
 
+bool AnimationManager::IsAnyAnimationPlayingWithNamePrefixedBy(const std::string &prefix) const
+{
+    auto findIter = std::find_if(mAnimations.cbegin(), mAnimations.cend(), [&](const AnimationEntry& entry) { return strutils::StringStartsWith(entry.mAnimationName.GetString(), prefix); });
+    return findIter != mAnimations.cend();
+}
+
+///------------------------------------------------------------------------------------------------
+
 int AnimationManager::GetAnimationCountPlayingForSceneObject(const strutils::StringId& sceneObjectName)
 {
     auto count = 0;

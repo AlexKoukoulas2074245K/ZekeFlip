@@ -63,6 +63,7 @@ static unsigned int sFontVertexArrayObject;
 static unsigned int sFontVertexBuffer;
 static unsigned int sFontUVBuffer;
 static unsigned int sFontPositionBuffer;
+static unsigned int sFontRotationBuffer;
 static unsigned int sFontScaleBuffer;
 static unsigned int sFontCustomMinUVBuffer;
 static unsigned int sFontCustomMaxUVBuffer;
@@ -175,6 +176,7 @@ public:
             float targetY = yCursor - glyph.mYOffsetPixels * mSceneObject.mScale.y;
             
             currentFontRenderData.mGlyphPositions.emplace_back(targetX - stringWidth/2.0f, targetY - stringHeight/2.0f, mSceneObject.mPosition.z + 0.00001f * i);
+            currentFontRenderData.mGlyphRotations.emplace_back(mSceneObject.mRotation.x, mSceneObject.mRotation.y, mSceneObject.mRotation.z);
             currentFontRenderData.mGlyphScales.emplace_back(glyph.mWidthPixels * mSceneObject.mScale.x, glyph.mHeightPixels * mSceneObject.mScale.y, 1.0f);
             currentFontRenderData.mGlyphMinUVs.emplace_back(glyph.minU, glyph.minV);
             currentFontRenderData.mGlyphMaxUVs.emplace_back(glyph.maxU, glyph.maxV);
@@ -306,6 +308,7 @@ void RendererPlatformImpl::VInitialize()
     GL_CALL(glGenBuffers(1, &sFontVertexBuffer));
     GL_CALL(glGenBuffers(1, &sFontUVBuffer));
     GL_CALL(glGenBuffers(1, &sFontPositionBuffer));
+    GL_CALL(glGenBuffers(1, &sFontRotationBuffer));
     GL_CALL(glGenBuffers(1, &sFontScaleBuffer));
     GL_CALL(glGenBuffers(1, &sFontCustomMinUVBuffer));
     GL_CALL(glGenBuffers(1, &sFontCustomMaxUVBuffer));
@@ -463,11 +466,17 @@ void RendererPlatformImpl::RenderSceneText(scene::Scene& scene)
             GL_CALL(glEnableVertexAttribArray(4));
             GL_CALL(glEnableVertexAttribArray(5));
             GL_CALL(glEnableVertexAttribArray(6));
+            GL_CALL(glEnableVertexAttribArray(7));
             
             // update the position buffer
             GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontPositionBuffer));
             GL_CALL(glBufferData(GL_ARRAY_BUFFER, fontRenderData.mGlyphPositions.size() * sizeof(glm::vec3), NULL, GL_DYNAMIC_DRAW));
             GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, fontRenderData.mGlyphPositions.size() * sizeof(glm::vec3), fontRenderData.mGlyphPositions.data()));
+            
+            // update the rotation buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontRotationBuffer));
+            GL_CALL(glBufferData(GL_ARRAY_BUFFER, fontRenderData.mGlyphRotations.size() * sizeof(glm::vec3), NULL, GL_DYNAMIC_DRAW));
+            GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, fontRenderData.mGlyphRotations.size() * sizeof(glm::vec3), fontRenderData.mGlyphRotations.data()));
             
             // update the scales buffer
             GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontScaleBuffer));
@@ -502,25 +511,30 @@ void RendererPlatformImpl::RenderSceneText(scene::Scene& scene)
             GL_CALL(glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE , 0 , nullptr));
             GL_CALL(glVertexAttribDivisor(2, 1));
             
-            // scales buffer
-            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontScaleBuffer));
+            // rotation buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontRotationBuffer));
             GL_CALL(glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE , 0 , nullptr));
             GL_CALL(glVertexAttribDivisor(3, 1));
             
-            // min uvs buffer
-            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontCustomMinUVBuffer));
-            GL_CALL(glVertexAttribPointer(4, 2, GL_FLOAT, GL_FALSE , 0 , nullptr));
+            // scales buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontScaleBuffer));
+            GL_CALL(glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE , 0 , nullptr));
             GL_CALL(glVertexAttribDivisor(4, 1));
             
-            // max uvs buffer
-            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontCustomMaxUVBuffer));
+            // min uvs buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontCustomMinUVBuffer));
             GL_CALL(glVertexAttribPointer(5, 2, GL_FLOAT, GL_FALSE , 0 , nullptr));
             GL_CALL(glVertexAttribDivisor(5, 1));
             
+            // max uvs buffer
+            GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontCustomMaxUVBuffer));
+            GL_CALL(glVertexAttribPointer(6, 2, GL_FLOAT, GL_FALSE , 0 , nullptr));
+            GL_CALL(glVertexAttribDivisor(6, 1));
+            
             // alphas buffer
             GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, sFontAlphaBuffer));
-            GL_CALL(glVertexAttribPointer(6, 1, GL_FLOAT, GL_FALSE , 0 , nullptr));
-            GL_CALL(glVertexAttribDivisor(6, 1));
+            GL_CALL(glVertexAttribPointer(7, 1, GL_FLOAT, GL_FALSE , 0 , nullptr));
+            GL_CALL(glVertexAttribDivisor(7, 1));
             
             // draw triangles
             GL_CALL(glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<int>(fontRenderData.mGlyphPositions.size())));
@@ -532,6 +546,7 @@ void RendererPlatformImpl::RenderSceneText(scene::Scene& scene)
             GL_CALL(glDisableVertexAttribArray(4));
             GL_CALL(glDisableVertexAttribArray(5));
             GL_CALL(glDisableVertexAttribArray(6));
+            GL_CALL(glDisableVertexAttribArray(7));
             
             GL_CALL(glBindVertexArray(0));
             

@@ -16,6 +16,7 @@
 #include <engine/utils/StringUtils.h>
 #include <game/BoardState.h>
 #include <game/events/EventSystem.h>
+#include <optional>
 #include <vector>
 
 ///------------------------------------------------------------------------------------------------
@@ -51,6 +52,11 @@ private:
     CardCoords GetCardSceneObjectBoardCoords(std::shared_ptr<scene::SceneObject> card) const;
     
     void OnCardStateChangeEvent(const events::CardStateChangeEvent& event);
+    void OnCardTypeChangeEvent(const events::CardTypeChangeEvent& event);
+    void OnGameEnded();
+    
+    void UpdateMarkButton(const float dtMillis);
+    void CreateClueSceneObjects(const std::vector<Clue>& clues, const bool isRowClues);
     void ResetCameraPosition();
     void CardHoveringAnimation();
     
@@ -66,6 +72,13 @@ private:
     std::unique_ptr<AnimatedButton> mTestButton;
     std::unique_ptr<BoardState> mBoardState;
     std::unique_ptr<events::IListener> mCardStateChangeListener;
+    std::unique_ptr<events::IListener> mCardTypeChangeListener;
+    std::unique_ptr<events::IListener> mGameEndedListener;
+    std::optional<GameEndReason> mGameEndReason;
+    float mGameEndDelayTimerSecs;
+    int mDifficulty;
+    bool mBlockGameInput;
+    bool mMarkingMode;
 };
 
 ///------------------------------------------------------------------------------------------------

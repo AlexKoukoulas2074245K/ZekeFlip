@@ -5,6 +5,7 @@
 ///  Created by Alex Koukoulas on 05/06/2026
 ///------------------------------------------------------------------------------------------------
 
+#include <engine/utils/MathUtils.h>
 #include <game/events/EventSystem.h>
 #include <game/BoardState.h>
 #include <sstream>
@@ -12,6 +13,13 @@
 #if defined(USE_IMGUI)
 #include <imgui/imgui.h>
 #endif
+
+///------------------------------------------------------------------------------------------------
+
+static std::unordered_map<CardType, int> sCardTypeToScore =
+{
+    { CardType::ONE, 1 }, { CardType::TWO, 2 }, { CardType::THREE, 3 },
+};
 
 ///------------------------------------------------------------------------------------------------
 
@@ -23,6 +31,9 @@ BoardState::BoardState(const int boardSize)
     {
         mBoard[i].resize(boardSize, CardEntry{CardType::ONE, CardState::HIDDEN});
     }
+    
+    mRowClues.resize(boardSize);
+    mColClues.resize(boardSize);
 }
 
 ///------------------------------------------------------------------------------------------------
@@ -45,7 +56,12 @@ CardType BoardState::GetCardTypeAt(const int row, const int col) const
 void BoardState::SetCardTypeAt(const int row, const int col, const CardType cardType)
 {
     assert(row < mBoard.size() && col < mBoard[row].size());
-    mBoard[row][col].mCardType = cardType;
+    
+    if (cardType != mBoard[row][col].mCardType)
+    {
+        mBoard[row][col].mCardType = cardType;
+        events::EventSystem::GetInstance().DispatchEvent<events::CardTypeChangeEvent>(row, col, cardType);
+    }
 }
 
 ///------------------------------------------------------------------------------------------------
@@ -66,6 +82,125 @@ void BoardState::SetCardStateAt(const int row, const int col, const CardState ca
     {
         mBoard[row][col].mCardState = cardState;
         events::EventSystem::GetInstance().DispatchEvent<events::CardStateChangeEvent>(row, col, cardState);
+        CheckAndDispatchEndGameEvents();
+    }
+}
+
+///------------------------------------------------------------------------------------------------
+
+const std::vector<Clue>& BoardState::GetRowClues() const
+{
+    return mRowClues;
+}
+
+///------------------------------------------------------------------------------------------------
+
+const std::vector<Clue>& BoardState::GetColClues() const
+{
+    return mColClues;
+}
+
+///------------------------------------------------------------------------------------------------
+
+void BoardState::GenerateBoardBasedOnDifficulty(int difficulty)
+{
+    assert(difficulty >= 1 && difficulty <= 10);
+    
+    // Board Reset
+    for (int row = 0; row < mBoardSize; ++row)
+    {
+        for (int col = 0; col < mBoardSize; ++col)
+        {
+            mBoard[row][col].mCardState = CardState::HIDDEN;
+            mBoard[row][col].mCardType = CardType::ONE;
+        }
+    }
+
+    auto placeRandom = [this](const CardType cardType, int count)
+    {
+        while (count > 0)
+        {
+            int randRow = math::RandomInt() % mBoardSize;
+            int randCol = math::RandomInt() % mBoardSize;
+            
+            if (GetCardTypeAt(randRow, randCol) == CardType::ONE)
+            {
+                mBoard[randRow][randCol].mCardType = cardType;
+                count--;
+            }
+        }
+    };
+    
+    int bombCount   = static_cast<int>(math::Lerp(6.0f,10.0f, difficulty/10.0f));
+    int twosCount   = static_cast<int>(math::Lerp(2.0f,7.0f, difficulty/10.0f));
+    int threesCount = static_cast<int>(math::Lerp(1.0f,6.0f, difficulty/10.0f));
+    
+    // Card Placement
+    placeRandom(CardType::BOMB, bombCount);
+    placeRandom(CardType::TWO, twosCount);
+    placeRandom(CardType::THREE, threesCount);
+    
+    // Row Clue Calculation
+    for (int row = 0; row < mBoardSize; row++)
+    {
+        mRowClues[row] = Clue{};
+    
+        for (int col = 0; col < mBoardSize; col++)
+        {
+            if (GetCardTypeAt(row, col) == CardType::BOMB)
+            {
+                mRowClues[row].mBombCount++;
+            }
+            else
+            {
+                mRowClues[row].mScoreSum += sCardTypeToScore.at(GetCardTypeAt(row, col));
+            }
+        }
+    }
+    
+    // Ver Clue Calculation
+    for (int col = 0; col < mBoardSize; col++)
+    {
+        mColClues[col] = {};
+        for (int row = 0; row < mBoardSize; row++)
+        {
+            if (GetCardTypeAt(row, col) == CardType::BOMB)
+            {
+                mColClues[col].mBombCount++;
+            }
+            else
+            {
+                
+                mColClues[col].mScoreSum += sCardTypeToScore.at(GetCardTypeAt(row, col));
+            }
+        }
+    }
+}
+
+///------------------------------------------------------------------------------------------------
+
+void BoardState::CheckAndDispatchEndGameEvents()
+{
+    bool twosThreesStillHidden = false;
+    for (int row = 0; row < mBoardSize; ++row)
+    {
+        for (int col = 0; col < mBoardSize; ++col)
+        {
+            if (GetCardStateAt(row, col) == CardState::FLIPPED && GetCardTypeAt(row, col) == CardType::BOMB)
+            {
+                events::EventSystem::GetInstance().DispatchEvent<events::GameEndedEvent>(GameEndReason::LOSS);
+                return;
+            }
+            if ((GetCardTypeAt(row, col) == CardType::TWO || GetCardTypeAt(row, col) == CardType::THREE) && GetCardStateAt(row, col) == CardState::HIDDEN)
+            {
+                twosThreesStillHidden = true;
+            }
+        }
+    }
+    
+    if (!twosThreesStillHidden)
+    {
+        events::EventSystem::GetInstance().DispatchEvent<events::GameEndedEvent>(GameEndReason::WIN);
     }
 }
 

@@ -31,6 +31,7 @@ public:
     struct FontRenderingData
     {
         std::vector<glm::vec3> mGlyphPositions;
+        std::vector<glm::vec3> mGlyphRotations;
         std::vector<glm::vec3> mGlyphScales;
         std::vector<glm::vec2> mGlyphMinUVs;
         std::vector<glm::vec2> mGlyphMaxUVs;
