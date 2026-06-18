@@ -253,17 +253,26 @@ void Game::Update(const float dtMillis)
     if (scene)
     {
         auto cardPickResult = PickPointedCard();
-        if (cardPickResult.selectedCard && CoreSystemsEngine::GetInstance().GetInputStateManager().VButtonTapped(input::Button::MAIN_BUTTON))
+        if (cardPickResult.selectedCard)
         {
-            if (mMarkingMode)
+            // Left-Click/Touch
+            if (CoreSystemsEngine::GetInstance().GetInputStateManager().VButtonTapped(input::Button::MAIN_BUTTON))
+            {
+                if (mMarkingMode)
+                {
+                    cardPickResult.selectedCard->mShaderBoolUniformValues[CARD_MARKED_UNIFORM_NAME] = !cardPickResult.selectedCard->mShaderBoolUniformValues[CARD_MARKED_UNIFORM_NAME];
+                }
+                else
+                {
+                    auto coords = GetCardSceneObjectBoardCoords(cardPickResult.selectedCard);
+                    mBoardState->SetCardStateAt(coords.mRow, coords.mCol, CardState::FLIPPED);
+                }
+            }
+            // Right-Click
+            else if (CoreSystemsEngine::GetInstance().GetInputStateManager().VButtonTapped(input::Button::SECONDARY_BUTTON))
             {
                 cardPickResult.selectedCard->mShaderBoolUniformValues[CARD_MARKED_UNIFORM_NAME] = !cardPickResult.selectedCard->mShaderBoolUniformValues[CARD_MARKED_UNIFORM_NAME];
-            }
-            else
-            {
-                auto coords = GetCardSceneObjectBoardCoords(cardPickResult.selectedCard);
-                mBoardState->SetCardStateAt(coords.mRow, coords.mCol, CardState::FLIPPED);
-            }
+            }            
         }
         else
         {

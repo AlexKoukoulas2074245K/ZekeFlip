@@ -79,3 +79,4 @@ xcuserdata/
 *.DS_Store
 *.xcuserstate
 *imgui.ini
+*Thumbs.db
